@@ -1,3 +1,4 @@
 src/threads/build
 src/userprog/build
 .svn
+.*~
