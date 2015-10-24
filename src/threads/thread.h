@@ -98,6 +98,11 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
 #endif
 
+    /* Added by student */
+    char *tid_name;
+
+    /*End Added by Student */
+
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };

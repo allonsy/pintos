@@ -60,8 +60,8 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
-
   /* If load failed, quit. */
+  thread_current()->tid_name = (char *)file_name;
   palloc_free_page (file_name);
   if (!success) 
     thread_exit ();
@@ -195,7 +195,7 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp);
+static bool setup_stack (void **esp, char *file_name);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -302,7 +302,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     }
 
   /* Set up stack. */
-  if (!setup_stack (esp))
+  if (!setup_stack (esp, file_name))
     goto done;
 
   /* Start address. */
@@ -427,7 +427,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (void **esp) 
+setup_stack (void **esp, char *file_name) 
 {
   uint8_t *kpage;
   bool success = false;
@@ -437,7 +437,35 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE;
+      {
+        int length = strlen(file_name)+1; //plus 1 for the null byte
+        *esp = PHYS_BASE-length;
+        memcpy(*esp, file_name, length);
+        char *argv_ptr=*esp;
+        while(length % 4 !=0)
+        {
+          *esp= *esp-1;
+          length++;
+        }
+        int *stack_ptr = (int *)*esp;
+        
+        stack_ptr--;
+        *stack_ptr=0;
+        
+        stack_ptr--;
+        *stack_ptr=argv_ptr;
+
+        stack_ptr--;
+        *stack_ptr=stack_ptr+1;
+        
+        stack_ptr--;
+        *stack_ptr = 1;
+        
+        stack_ptr--;
+        *stack_ptr = 0;
+        
+        *esp = stack_ptr;
+      }
       else
         palloc_free_page (kpage);
     }
