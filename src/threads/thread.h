@@ -4,8 +4,6 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
-#include "threads/synch.h"
-#include "threads/fixed-point.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -83,7 +81,7 @@ typedef int tid_t;
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
 struct thread
-{
+  {
     /* Owned by thread.c. */
     tid_t tid;                          /* Thread identifier. */
     enum thread_status status;          /* Thread state. */
@@ -100,43 +98,9 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
 #endif
 
-  /* Begin student added members */
-
-  /* Alarm portion */
-  
-  struct list_elem sleepelem;  /* List for threads put to sleep by timer_sleep */
-  
-  int64_t wakeup_time; /* holds tick value after which thread can be awoken */
-
-  struct semaphore timer_sema; /* indicates readiness for waking */
-
-  /* Priority portion */
-
-  struct list waiters; /* list of threads waiting on this thread */
-
-  struct semaphore waiters_sema;
-
-  struct list_elem waitelem; /* element for inclusion in another thread's waiters list */
-
-  int eff_priority; /* for holding higher/donated priority values */
-
-  struct lock *blocker;
-
-  /* MLFQS portion */
-
-  //struct list_elem mlfqs_elem;
-
-  fp_t recent_cpu;
-
-  //struct semaphore recent_cpu_sema; /*lock for recentcpu and nice */
-
-  int nice; /* The nice value for calculating priority *.
-
-  /* End student added members */
-
-  /* Owned by thread.c. */
-  unsigned magic;                     /* Detects stack overflow. */
-};
+    /* Owned by thread.c. */
+    unsigned magic;                     /* Detects stack overflow. */
+  };
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
@@ -167,16 +131,11 @@ typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
 
 int thread_get_priority (void);
-void thread_set_priority (int new_priority);
+void thread_set_priority (int);
 
 int thread_get_nice (void);
-void thread_set_nice (int nice);
+void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
-void thread_compute_load_avg(void);
-void thread_compute_all_recent_cpu(void);
-void thread_tick_recent_cpu(void);
-int thread_compute_priority(struct thread *t);
-void thread_compute_all_priority(void);
 
 #endif /* threads/thread.h */

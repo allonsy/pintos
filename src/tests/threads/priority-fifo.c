@@ -53,7 +53,6 @@ test_priority_fifo (void)
   thread_set_priority (PRI_DEFAULT + 2);
   for (i = 0; i < THREAD_CNT; i++) 
     {
-      printf("main thread running loop iter: %d\n", i);
       char name[16];
       struct simple_thread_data *d = data + i;
       snprintf (name, sizeof name, "%d", i);
@@ -63,8 +62,6 @@ test_priority_fifo (void)
       d->op = &op;
       thread_create (name, PRI_DEFAULT + 1, simple_thread_func, d);
     }
-
-  printf("main thread dropping priority\n");
 
   thread_set_priority (PRI_DEFAULT);
   /* All the other threads now run to termination here. */
