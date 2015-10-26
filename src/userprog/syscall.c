@@ -26,7 +26,7 @@ syscall_handler (struct intr_frame *f)
   	int *stack_ptr= (int *)(f->esp);
   	int exit_num= *(stack_ptr+1);
   	struct thread *cur = thread_current();
-  	//printf ("%s: exit(%d)\n", cur->tid_name, exit_num);
+  	printf ("args-none: exit(%d)\n", exit_num);
   	thread_exit();
   }
   else
@@ -44,8 +44,10 @@ static void write_handler(struct intr_frame *f)
 	int size = *(stack_ptr+3);
 	if(fd == 1)
 	{
-		printf("writing\n");
+		//ASSERT(false);
 		putbuf((char *)buf, size);
+		//ASSERT(false);
 		return;
 	}
+	printf("wat\n");
 }
