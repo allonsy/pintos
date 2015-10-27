@@ -1,4 +1,5 @@
 #include "userprog/process.h"
+#include "devices/timer.h"
 #include <debug.h>
 #include <inttypes.h>
 #include <round.h>
@@ -86,9 +87,9 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
-  while(true){};
+  timer_msleep(5000);
 }
 
 /* Free the current process's resources. */
@@ -195,7 +196,7 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp, char *file_name);
+static bool setup_stack (void **esp, char **arglist, int argc);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -214,6 +215,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   off_t file_ofs;
   bool success = false;
   int i;
+  char file_name_cpy[strlen(file_name)];
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
@@ -222,10 +224,14 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
-  file = filesys_open (file_name);
+  char *tempy;
+  memcpy(file_name_cpy, file_name, strlen(file_name));
+  char *file_exec_name = strtok_r(file_name_cpy, " ", &tempy);
+
+  file = filesys_open (file_exec_name);
   if (file == NULL) 
     {
-      printf ("load: %s: open failed\n", file_name);
+      printf ("load: %s: open failed\n", file_exec_name);
       goto done; 
     }
 
@@ -302,7 +308,27 @@ load (const char *file_name, void (**eip) (void), void **esp)
     }
 
   /* Set up stack. */
-  if (!setup_stack (esp, file_name))
+  char *token;
+  char *save_ptr = NULL;
+  token = strtok_r(file_name, " ", &save_ptr);
+  char **arglist = malloc(sizeof(char *) * 10);
+  arglist[0] = token;
+  int count = 1;
+  int size=10;
+  token = strtok_r(NULL, " ", &save_ptr);
+  while(token!=NULL)
+  {
+    arglist[count] = token;
+    count++;
+    if(count >= size)
+    {
+      arglist = realloc(arglist, sizeof(char *) * (size +10));
+      size +=10;
+    }
+    token = strtok_r(NULL, " ", &save_ptr);
+  }
+
+  if (!setup_stack (esp, arglist, count))
     goto done;
 
   /* Start address. */
@@ -427,21 +453,27 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (void **esp, char *file_name) 
+setup_stack (void **esp, char **arglist, int argc) 
 {
   uint8_t *kpage;
   bool success = false;
-
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
   if (kpage != NULL) 
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
       {
-        int length = strlen(file_name)+1; //plus 1 for the null byte
-        *esp = PHYS_BASE-length;
-        memcpy(*esp, file_name, length);
-        char *argv_ptr=*esp;
+        *esp = PHYS_BASE;
+        int length=0;
+        int i;
+        for(i=0; i< argc; i++)
+        {
+          int str_length = strlen(arglist[i]) + 1;
+          *esp = *esp - str_length;
+          memcpy(*esp, arglist[i], str_length);
+          arglist[i] = *esp;
+          length = length + str_length;
+        }
         while(length % 4 !=0)
         {
           *esp= *esp-1;
@@ -451,15 +483,21 @@ setup_stack (void **esp, char *file_name)
         
         stack_ptr--;
         *stack_ptr=0;
-        
-        stack_ptr--;
-        *stack_ptr=argv_ptr;
 
-        stack_ptr--;
-        *stack_ptr=stack_ptr+1;
+        char **arg_ptr = (char **)(stack_ptr);
+
+        for(i=argc - 1; i<= 0; i--)
+        {
+          arg_ptr--;
+          *arg_ptr = &arglist[i];
+        }
+
+        arg_ptr--;
+        *arg_ptr=arg_ptr+1;
         
+        stack_ptr = (int *)arg_ptr;
         stack_ptr--;
-        *stack_ptr = 1;
+        *stack_ptr = argc+1;
         
         stack_ptr--;
         *stack_ptr = 0;

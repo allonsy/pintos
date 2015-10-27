@@ -143,4 +143,7 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+/* added by student */
+/*end added by student */
+
 #endif /* threads/thread.h */
