@@ -34,8 +34,6 @@ syscall_handler (struct intr_frame *f)
     case SYS_HALT:
       shutdown_power_off();
       break;
-    case SYS_WAIT:
-
     case SYS_CREATE:
 
     case SYS_REMOVE:
@@ -49,6 +47,10 @@ syscall_handler (struct intr_frame *f)
     case SYS_TELL:
 
     case SYS_CLOSE:
+
+    case SYS_EXEC:
+
+    case SYS_WAIT:
 
     default:
       printf("system call! number: %d\n", intr_num);
@@ -70,4 +72,10 @@ static void write_handler(struct intr_frame *f)
 		putbuf(kernel_buf, size);
 		return;
 	}
+}
+
+static void create_handler(struct intr_frame *f)
+{
+
+  filesys_create (const char *name, off_t initial_size);
 }
