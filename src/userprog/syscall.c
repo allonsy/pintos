@@ -3,6 +3,7 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include <string.h>
 
 static void syscall_handler (struct intr_frame *);
 static void write_handler (struct intr_frame *);
@@ -59,13 +60,14 @@ syscall_handler (struct intr_frame *f)
 static void write_handler(struct intr_frame *f)
 {
 	int *stack_ptr = (int *)(f->esp);
+  int size = *(stack_ptr+3);
 	int fd = *(stack_ptr+1);
+  char kernel_buf[size];
 	void *buf = (void *)(*(stack_ptr+2));
-	int size = *(stack_ptr+3);
+  memcpy(kernel_buf,buf, size);
 	if(fd == 1)
 	{
-		printf("writing\n");
-		putbuf((char *)buf, size);
+		putbuf(kernel_buf, size);
 		return;
 	}
 }

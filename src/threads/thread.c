@@ -101,6 +101,8 @@ thread_init (void)
   initial_thread->tid = allocate_tid ();
 }
 
+/* Free the current proc
+
 /* Starts preemptive thread scheduling by enabling interrupts.
    Also creates the idle thread. */
 void
