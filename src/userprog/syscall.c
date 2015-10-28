@@ -17,22 +17,42 @@ static void
 syscall_handler (struct intr_frame *f) 
 {
   uint32_t intr_num = *(int *)(f->esp);
-  if(intr_num ==SYS_WRITE)
+
+  switch (intr_num)
   {
-  	write_handler(f);
-  }
-  else if(intr_num==SYS_EXIT)
-  {
-  	int *stack_ptr= (int *)(f->esp);
-  	int exit_num= *(stack_ptr+1);
-  	struct thread *cur = thread_current();
-  	//printf ("%s: exit(%d)\n", cur->tid_name, exit_num);
-  	thread_exit();
-  }
-  else
-  {
-  	printf("system call! number: %d\n", intr_num);
-  	thread_exit ();
+    case SYS_WRITE:
+      write_handler(f);
+      break;
+    case SYS_EXIT:
+      int *stack_ptr= (int *)(f->esp);
+      int exit_num= *(stack_ptr+1);
+      struct thread *cur = thread_current();
+      //printf ("%s: exit(%d)\n", cur->tid_name, exit_num);
+      thread_exit();
+      break;
+    case SYS_HALT:
+      shutdown_power_off();
+      break;
+    case SYS_WAIT:
+
+    case SYS_CREATE:
+
+    case SYS_REMOVE:
+
+    case SYS_OPEN:
+
+    case SYS_READ:
+
+    case SYS_SEEK:
+
+    case SYS_TELL:
+
+    case SYS_CLOSE:
+
+    default:
+      printf("system call! number: %d\n", intr_num);
+      thread_exit ();
+      break;
   }
 }
 
