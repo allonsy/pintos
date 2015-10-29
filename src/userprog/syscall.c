@@ -18,8 +18,19 @@ static void
 syscall_handler (struct intr_frame *f) 
 {
   uint32_t intr_num = *(int *)(f->esp);
-
-  switch (intr_num)
+  if(intr_num ==SYS_WRITE)
+  {
+  	write_handler(f);
+  }
+  else if(intr_num==SYS_EXIT)
+  {
+  	int *stack_ptr= (int *)(f->esp);
+  	int exit_num= *(stack_ptr+1);
+  	struct thread *cur = thread_current();
+  	printf ("%s: exit(%d)\n", cur->name,exit_num);
+  	thread_exit();
+  }
+  else
   {
     case SYS_WRITE:
       write_handler(f);

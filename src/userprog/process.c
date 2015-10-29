@@ -89,7 +89,7 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid) 
 {
-  timer_msleep(5000);
+  timer_msleep(1000);
   return -1;
 }
 
@@ -312,6 +312,20 @@ load (const char *file_name, void (**eip) (void), void **esp)
   char *token;
   char *save_ptr = NULL;
   token = strtok_r(file_name, " ", &save_ptr);
+  int len = strlen(token);
+  int max = 15;
+  int cpy_amt;
+  if(max >= len)
+  {
+    memcpy(thread_current()->name, token, len+1);
+  }
+  else
+  {
+    memcpy(thread_current()->name, token, 15);
+    thread_current()->name[15] = '\0';
+  }
+
+
   char **arglist = malloc(sizeof(char *) * 10);
   arglist[0] = token;
   int count = 1;
@@ -487,10 +501,10 @@ setup_stack (void **esp, char **arglist, int argc)
 
         char **arg_ptr = (char **)(stack_ptr);
 
-        for(i=argc - 1; i<= 0; i--)
+        for(i=argc - 1; i>= 0; i--)
         {
           arg_ptr--;
-          *arg_ptr = &arglist[i];
+          *arg_ptr = arglist[i];
         }
 
         arg_ptr--;
@@ -498,7 +512,7 @@ setup_stack (void **esp, char **arglist, int argc)
         
         stack_ptr = (int *)arg_ptr;
         stack_ptr--;
-        *stack_ptr = argc+1;
+        *stack_ptr = argc;
         
         stack_ptr--;
         *stack_ptr = 0;
