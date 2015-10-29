@@ -233,7 +233,7 @@ sys_write (int fd, void *usrc_, unsigned size)
   if(fd == 1)
   {
     putbuf(kernel_buf, size);
-    return;
+    return size;
   }
 
   return -1;
@@ -251,8 +251,8 @@ static void
 sys_exit (int status)
 {
   struct thread *cur = thread_current();
-  printf ("%s: exit(%d)\n", cur->tid_name, status);
-  process_exit();
+  printf ("%s: exit(%d)\n", cur->name, status);
+  //process_exit();
   thread_exit();
 }
 
