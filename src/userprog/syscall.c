@@ -32,41 +32,44 @@ syscall_handler (struct intr_frame *f)
   }
   else
   {
-    case SYS_WRITE:
-      write_handler(f);
-      break;
-    case SYS_EXIT:
-      int *stack_ptr= (int *)(f->esp);
-      int exit_num= *(stack_ptr+1);
-      struct thread *cur = thread_current();
-      //printf ("%s: exit(%d)\n", cur->tid_name, exit_num);
-      thread_exit();
-      break;
-    case SYS_HALT:
-      shutdown_power_off();
-      break;
-    case SYS_CREATE:
+    /*switch(intr_num)
+    {
+      case SYS_WRITE:
+        write_handler(f);
+        break;
+      case SYS_EXIT:
+        int *stack_ptr= (int *)(f->esp);
+        int exit_num= *(stack_ptr+1);
+        struct thread *cur = thread_current();
+        //printf ("%s: exit(%d)\n", cur->tid_name, exit_num);
+        thread_exit();
+        break;
+      case SYS_HALT:
+        shutdown_power_off();
+        break;
+      case SYS_CREATE:
 
-    case SYS_REMOVE:
+      case SYS_REMOVE:
 
-    case SYS_OPEN:
+      case SYS_OPEN:
 
-    case SYS_READ:
+      case SYS_READ:
 
-    case SYS_SEEK:
+      case SYS_SEEK:
 
-    case SYS_TELL:
+      case SYS_TELL:
 
-    case SYS_CLOSE:
+      case SYS_CLOSE:
 
-    case SYS_EXEC:
+      case SYS_EXEC:
 
-    case SYS_WAIT:
+      case SYS_WAIT:
 
-    default:
-      printf("system call! number: %d\n", intr_num);
-      thread_exit ();
-      break;
+      default:*/
+        printf("system call! number: %d\n", intr_num);
+        thread_exit ();
+        //break;
+    //}
   }
 }
 
@@ -88,5 +91,5 @@ static void write_handler(struct intr_frame *f)
 static void create_handler(struct intr_frame *f)
 {
 
-  filesys_create (const char *name, off_t initial_size);
+  //filesys_create (const char *name, off_t initial_size);
 }
