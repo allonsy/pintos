@@ -15,7 +15,7 @@ static void syscall_handler (struct intr_frame *f);
 
 static int sys_exec (const char *ufile);
 static bool sys_create (const char *ufile, unsigned initial_size);
-static int sys_write (int handle, void *usrc_, unsigned size);
+static int sys_write (int fd, void *usrc_, unsigned size);
 //static void sys_halt (void);
 static void sys_exit (int status);
 static int sys_wait (int pid);
@@ -199,7 +199,7 @@ sys_create (const char *ufile, unsigned initial_size)
 
 /* Write system call. */
 static int
-sys_write (int handle, void *usrc_, unsigned size)
+sys_write (int fd, void *usrc_, unsigned size)
 {
   // ...;
   // struct file_descriptor *fd = lookup_fd(handle);
@@ -226,6 +226,15 @@ sys_write (int handle, void *usrc_, unsigned size)
   // }
 
   // ...;
+
+
+  char kernel_buf[size];
+  memcpy(kernel_buf,usrc_, size);
+  if(fd == 1)
+  {
+    putbuf(kernel_buf, size);
+    return;
+  }
 
   return -1;
 }
