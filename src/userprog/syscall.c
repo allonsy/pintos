@@ -9,9 +9,6 @@
 #include <string.h>
 #include "devices/shutdown.h"
 
-// static void syscall_handler (struct intr_frame *);
-// static void write_handler (struct intr_frame *);
-
 static void syscall_handler (struct intr_frame *f);
 
 static int sys_exec (const char *ufile);
@@ -93,12 +90,6 @@ syscall_handler (struct intr_frame *f)
     case SYS_WAIT:
     case SYS_FILESIZE:
     case SYS_EXIT:
-      // int *stack_ptr= (int *)(f->esp);
-      // int exit_num= *(stack_ptr+1);
-      // struct thread *cur = thread_current();
-      // //printf ("%s: exit(%d)\n", cur->tid_name, exit_num);
-      // thread_exit();
-      // break;
       arg_cnt = 1;
       break;
 
