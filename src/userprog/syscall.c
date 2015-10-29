@@ -5,6 +5,7 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "userprog/pagedir.h"
 #include <string.h>
 #include "devices/shutdown.h"
 
@@ -38,11 +39,34 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
+int
+is_valid_uptr(void *ptr)
+{
+  struct thread *t = thread_current();
+  if(ptr != NULL)
+  {
+    if(is_user_vaddr(ptr))
+    {
+      void *page_number = pagedir_get_page(t->pagedir, ptr);
+      if(page_number !=NULL)
+      {
+        return 1;
+      }
+    }
+  }
+  printf ("%s: exit(%d)\n", t->name, -1);
+  thread_exit ();
+  return 0;
+}
+
 /* System call handler. */
 static void
 syscall_handler (struct intr_frame *f)
 {
-  
+  if(!is_valid_uptr(f->esp))
+  {
+    return;
+  }
   int args[3];
   uint32_t call_nr;
   int arg_cnt = 0;
@@ -101,8 +125,8 @@ syscall_handler (struct intr_frame *f)
   // then we just copy the pointer here, and you still need to
   // call 'copy_in_string' on the pointer to pass the string
   // from user space to kernel space
-  memset (args, 0, sizeof args);
-  copy_in (args, (uint32_t *) f->esp + 1, (sizeof *args) * arg_cnt);
+  memset (args, 0, sizeof args);;
+  copy_in (args, ((uint32_t *) f->esp) + 1, (sizeof *args) * arg_cnt);
 
   // now that args holds the correct arguments, call the functions
   // and sets f->eax to the return value for syscalls that return values
@@ -333,8 +357,10 @@ static void copy_in (void *dst_, const void *usrc_, size_t size) {
   const uint8_t *usrc = usrc_;
   
   for (; size > 0; size--, dst++, usrc++)
-    if (usrc >= (uint8_t *) PHYS_BASE || !get_user (dst, usrc))
-      thread_exit ();
+  {
+    is_valid_uptr(usrc);
+    get_user (dst, usrc);
+  }
 }
 
 

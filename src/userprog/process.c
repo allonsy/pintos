@@ -215,7 +215,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   off_t file_ofs;
   bool success = false;
   int i;
-  char file_name_cpy[strlen(file_name)];
+  char file_name_cpy[strlen(file_name)+1];
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
@@ -225,7 +225,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   /* Open executable file. */
   char *tempy;
-  memcpy(file_name_cpy, file_name, strlen(file_name));
+  memcpy(file_name_cpy, file_name, strlen(file_name)+1);
   char *file_exec_name = strtok_r(file_name_cpy, " ", &tempy);
 
   file = filesys_open (file_exec_name);
