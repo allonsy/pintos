@@ -376,11 +376,11 @@ copy_in_string (const char *us)
 
   size_t length = strlen(us);
 
-  ks = malloc(length)
+  ks = malloc(length+1);
   if (ks == NULL)
     thread_exit ();
 
-  copy_in(ks, (void *) us, sizeof char * (length + 1));
+  copy_in(ks, (void *) us, length + 1);
 
   return ks;
 
