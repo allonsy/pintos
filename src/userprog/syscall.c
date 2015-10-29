@@ -1,13 +1,12 @@
 #include "userprog/syscall.h"
+#include "userprog/process.h"
 #include <stdio.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/vaddr.h"
 #include <string.h>
 #include "devices/shutdown.h"
-#include "threads/vaddr.h"
-
-/* testing ssh into csil */
 
 // static void syscall_handler (struct intr_frame *);
 // static void write_handler (struct intr_frame *);
@@ -242,7 +241,10 @@ sys_write (int handle, void *usrc_, unsigned size)
 static void 
 sys_exit (int status)
 {
-  return;
+  struct thread *cur = thread_current();
+  printf ("%s: exit(%d)\n", cur->tid_name, status);
+  process_exit();
+  thread_exit();
 }
 
 static int 
