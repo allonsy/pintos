@@ -54,6 +54,10 @@ start_process (void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
+  int i = 0;
+
+  // can use this limit for now
+  char filenoargs[15];
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -61,8 +65,17 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
+
+  while(file_name[i] 1= ' ')
+  {
+    filenoargs[i] = file_name[i];
+    i++;
+  }
+
+  filenoargs[i] = '\0';
+
   /* If load failed, quit. */
-  thread_current()->tid_name = (char *)file_name;
+  thread_current()->tid_name = filenoargs;
   palloc_free_page (file_name);
   if (!success) 
     thread_exit ();
