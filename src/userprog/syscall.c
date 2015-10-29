@@ -46,8 +46,6 @@ syscall_handler (struct intr_frame *f)
   int args[3];
   uint32_t call_nr;
   int arg_cnt = 0;
-  // for those system calls that are supposed to return values
-  uint32_t retval;
 
   copy_in (&call_nr, f->esp, sizeof call_nr);
 
@@ -239,20 +237,11 @@ sys_write (int fd, void *usrc_, unsigned size)
   return -1;
 }
 
-
-
-// static void 
-// sys_halt (void)
-// {
-//   return;
-// }
-
 static void 
 sys_exit (int status)
 {
   struct thread *cur = thread_current();
   printf ("%s: exit(%d)\n", cur->name, status);
-  //process_exit();
   thread_exit();
 }
 
@@ -335,7 +324,6 @@ put_user (uint8_t *udst, uint8_t byte)
 }
 
 
-
 /* Copies SIZE bytes from user address USRC to kernel address DST.  Call
    thread_exit() if any of the user accesses are invalid. */ 
 
@@ -359,20 +347,14 @@ static char *
 copy_in_string (const char *us)
 {
   char *ks = NULL;
-  // size_t length;
 
-  // ks = palloc_get_page (0);
-  // if (ks == NULL)
-  //   thread_exit ();
+  size_t length = strlen(us);
 
-  // for (...) 
-  //   {
-      
-  //     ...;
-  //     // call get_user() until you see '\0'
-  //     ...;
-      
-  //   }
+  ks = malloc(length)
+  if (ks == NULL)
+    thread_exit ();
+
+  copy_in(ks, (void *) us, sizeof char * (length + 1));
 
   return ks;
 
@@ -380,18 +362,3 @@ copy_in_string (const char *us)
   // with this page, before you return to user from syscall
 }
 
-
-// static void write_handler(struct intr_frame *f)
-// {
-// 	int *stack_ptr = (int *)(f->esp);
-//   int size = *(stack_ptr+3);
-// 	int fd = *(stack_ptr+1);
-//   char kernel_buf[size];
-// 	void *buf = (void *)(*(stack_ptr+2));
-//   memcpy(kernel_buf,buf, size);
-// 	if(fd == 1)
-// 	{
-// 		putbuf(kernel_buf, size);
-// 		return;
-// 	}
-// }
