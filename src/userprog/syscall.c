@@ -9,6 +9,7 @@
 #include "userprog/pagedir.h"
 #include <string.h>
 #include "devices/shutdown.h"
+#include "devices/input.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 #include "threads/synch.h"
@@ -218,33 +219,8 @@ sys_create (char *file_name, unsigned initial_size)
 static int
 sys_write (int fd, void *usrc_, unsigned size)
 {
-  // ...;
-  // struct file_descriptor *fd = lookup_fd(handle);
-  // int sizeToWrite = size;
-
-  // while (sizeToWrite > 0) {
-
-  //   ...;
-
-  //   if (handle == STDOUT_FILENO)
-  //     {
-  // putbuf (usrc, write_amount);
-  // retval = write_amt;
-  //     }
-  //   else
-  //     {
-  // retval = file_write (fd->file, usrc, write_amount);
-  //     }
-
-  //   ...;
-
-  //   sizeToWrite -= retval;
-    
-  // }
-
-  // ...;
   is_valid_uptr(usrc_);
-  char *kernel_buf=malloc(size);
+  char *kernel_buf = malloc(size);
   memcpy(kernel_buf,usrc_, size);
   if(fd == STDOUT_FILENO)
   {
@@ -265,6 +241,7 @@ sys_write (int fd, void *usrc_, unsigned size)
         lock_acquire(&filesys_lock);
         int written = file_write(fds->fptr, kernel_buf, size);
         lock_release(&filesys_lock);
+        free(kernel_buf);
         return written;
       }
     }
@@ -363,7 +340,49 @@ sys_filesize (int fd)
 static int 
 sys_read (int fd, void *buffer, unsigned length)
 {
-  return 0;
+  is_valid_uptr(buffer);
+  is_valid_uptr(buffer+length-1);
+
+  char *kbuf = malloc(length);
+  char c;
+  int i = 0;
+  int readbytes = 0;
+
+  if(fd == STDIN_FILENO)
+  {
+    while(i < length)
+    {
+      kbuf[i] = c = input_getc();
+      readbytes++;
+      i++;
+      if(c == '\n')
+        break;
+    }
+    memcpy(kbuf, buffer, length);
+    free(kbuf);
+    return readbytes;
+  }
+  else
+  {
+    struct thread *t = thread_current();
+    struct list_elem *e;
+    struct fdesc *fds = NULL;
+    for(e=list_begin(&t->files); e != list_end(&t->files); e = list_next(e))
+    {
+      fds = list_entry(e, struct fdesc, elem);
+      if(fds->fd == fd)
+      {
+        lock_acquire(&filesys_lock);
+        readbytes = file_read(fds->fptr, kbuf, length);
+        lock_release(&filesys_lock);
+
+        memcpy(kbuf, buffer, readbytes);
+        free(kbuf);
+        return readbytes;
+      }
+    }
+  }
+  return -1;
 }
 
 static void 
