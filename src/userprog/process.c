@@ -100,12 +100,14 @@ process_exit (void)
   struct thread *cur = thread_current ();
   
   struct list_elem *e;
-  for(e = list_begin(&cur->files); e != list_end(&cur->files); e = list_next(e))
+  while(!list_empty(&cur->files))
   {
-    struct fdesc *fds = list_entry(e, struct fdesc, elem);
+    struct fdesc *fds = list_entry(list_pop_front(&cur->files), struct fdesc, elem);
+    free(fds->fptr);
     free(fds);
-    list_remove(e);
   }
+
+
   uint32_t *pd;
 
   /* Destroy the current process's page directory and switch back
