@@ -3,13 +3,15 @@
 #include <stdio.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
+#include "threads/malloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
 #include <string.h>
 #include "devices/shutdown.h"
 #include "filesys/filesys.h"
-#include "threads/malloc.h"
+#include "filesys/file.h"
+#include "threads/synch.h"
 
 static void syscall_handler (struct intr_frame *f);
 
@@ -367,13 +369,35 @@ sys_read (int fd, void *buffer, unsigned length)
 static void 
 sys_seek (int fd, unsigned position)
 {
+  struct thread *t = thread_current();
+  struct list_elem *e;
+
+  for(e=list_begin(&t->files); e != list_end(&t->files); e = list_next(e))
+  {
+    struct fdesc *fds = list_entry(e, struct fdesc, elem);
+    if(fds->fd == fd)
+    {
+      file_seek(fds->fptr, position);
+    }
+  }
   return;
 }
 
-static unsigned 
+static unsigned int
 sys_tell (int fd)
 {
-  return;
+  struct thread *t = thread_current();
+  struct list_elem *e;
+
+  for(e=list_begin(&t->files); e != list_end(&t->files); e = list_next(e))
+  {
+    struct fdesc *fds = list_entry(e, struct fdesc, elem);
+    if(fds->fd == fd)
+    {
+      return file_tell(fds->fptr);
+    }
+  }
+  return -1;
 }
 
 static void
