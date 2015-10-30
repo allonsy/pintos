@@ -144,6 +144,9 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 /* added by student */
+
+extern struct lock filesys_lock;
+
 /*end added by student */
 
 #endif /* threads/thread.h */
