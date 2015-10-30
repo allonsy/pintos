@@ -198,7 +198,13 @@ syscall_handler (struct intr_frame *f)
 static int
 sys_exec (const char *ufile)
 {
-  return -1;
+  char *kfile = copy_in_string (ufile);
+  tid_t pid = process_execute (kfile);
+  free(kfile);
+  if(pid == TID_ERROR)
+    return -1;
+  else
+    return (int) pid;
 }
 
 /* Create system call. */
