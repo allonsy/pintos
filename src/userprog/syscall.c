@@ -335,10 +335,6 @@ sys_open (const char *file)
 
   if(fptr == NULL)
     return -1;
-  /*else if(t->parent && strcmp(kfile, t->parent->name)==0)
-  {
-    file_deny_write(fptr);
-  }*/
 
   struct fdesc *fds = malloc(sizeof (struct fdesc) );
   fds->fptr = fptr;
@@ -558,8 +554,5 @@ copy_in_string (const char *us)
   copy_in(ks, (void *) us, length + 1);
 
   return ks;
-
-  // don't forget to call palloc_free_page(..) when you're done
-  // with this page, before you return to user from syscall
 }
 

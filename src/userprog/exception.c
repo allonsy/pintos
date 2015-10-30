@@ -69,6 +69,7 @@ exception_print_stats (void)
   printf ("Exception: %lld page faults\n", page_fault_cnt);
 }
 
+//analog of sys_exit with hardcoded -1
 void
 except_exit ()
 {
@@ -78,7 +79,7 @@ except_exit ()
   {
     lock_acquire(&cur->parent->child_list_lock);
     struct list_elem *e;
-    for(e = list_begin(&cur->parent->children); e != list_end(&cur->parent->children); e= list_next(e))
+    for(e = list_begin(&cur->parent->children); e != list_end(&cur->parent->children); e = list_next(e))
     {
       struct child *chld = list_entry(e, struct child, elem);
       if(chld->pid == cur->tid)
