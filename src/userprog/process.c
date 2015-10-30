@@ -90,7 +90,7 @@ int
 process_wait (tid_t child_tid) 
 {
   timer_msleep(1000);
-  return -1;
+  return 0;
 }
 
 /* Free the current process's resources. */

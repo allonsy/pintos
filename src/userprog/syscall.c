@@ -266,7 +266,8 @@ sys_exit (int status)
 static int 
 sys_wait (int pid)
 {
-  return -1;
+  process_wait(pid);
+  return 0;
 }
 
 
