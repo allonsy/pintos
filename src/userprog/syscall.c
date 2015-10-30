@@ -8,6 +8,8 @@
 #include "userprog/pagedir.h"
 #include <string.h>
 #include "devices/shutdown.h"
+#include "filesys/filesys.h"
+#include "threads/malloc.h"
 
 // static void syscall_handler (struct intr_frame *);
 // static void write_handler (struct intr_frame *);
@@ -15,7 +17,7 @@
 static void syscall_handler (struct intr_frame *f);
 
 static int sys_exec (const char *ufile);
-static bool sys_create (const char *ufile, unsigned initial_size);
+static bool sys_create (char *ufile, unsigned initial_size);
 static int sys_write (int fd, void *usrc_, unsigned size);
 //static void sys_halt (void);
 static void sys_exit (int status);
@@ -207,14 +209,10 @@ sys_exec (const char *ufile)
 
 /* Create system call. */
 static bool
-sys_create (const char *ufile, unsigned initial_size)
+sys_create (char *file_name, unsigned initial_size)
 {
-  // ...; 
-  // char *kfile = copy_in_string (ufile);
-  // ...;
-  // bool ok = filesys_create (kfile, initial_size);
-  // ...;
-  return false;
+  char *cfile = copy_in_string (file_name);
+  return filesys_create(cfile, initial_size);
 }
 
 
@@ -372,6 +370,7 @@ static void copy_in (void *dst_, const void *usrc_, size_t size) {
 static char *
 copy_in_string (const char *us)
 {
+  is_valid_uptr(us);
   char *ks = NULL;
 
   size_t length = strlen(us);
