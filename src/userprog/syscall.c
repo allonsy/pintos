@@ -34,7 +34,7 @@ static char *copy_in_string (const char *us);
 
 typedef struct fdesc {
   int fd;
-  struct file *file;
+  struct file *fptr;
   struct list_elem elem;
 } fdesc;
 
@@ -208,10 +208,11 @@ sys_exec (const char *ufile)
 static bool
 sys_create (char *file_name, unsigned initial_size)
 {
-  char *cfile = copy_in_string (file_name);
+  char *kfile = copy_in_string (file_name);
   lock_acquire(&filesys_lock);
-  bool ret = filesys_create(cfile, initial_size);
+  bool ret = filesys_create(kfile, initial_size);
   lock_release(&filesys_lock);
+  free(kfile);
   return ret;
 }
 
@@ -284,6 +285,28 @@ sys_remove (const char *file)
 static int 
 sys_open (const char *file)
 {
+  char *kfile = copy_in_string (file_name);
+  struct thread *t = thread_current ();
+
+  lock_acquire(&filesys_lock);
+  file *fptr = filesys_open(kfile);
+  lock_release(&filesys_lock);
+
+  fdesc *fds = malloc(sizeof fdesc);
+  fds->fptr = fptr;
+
+  if(list_empty(&t->files))
+  {
+    fds->fd = 3;
+  }
+  else
+  {
+    fds->fd = list_entry(list_back(&t->files), struct fdesc, elem)->fd + 1;
+  }
+
+  list_push_back(&t->files, &fds->elem);
+
+  free(kfile);
   return -1;
 }
 
