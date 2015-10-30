@@ -101,6 +101,8 @@ struct thread
     /* Added by student */
     char *tid_name;
 
+    struct list files;
+
     /*End Added by Student */
 
     /* Owned by thread.c. */

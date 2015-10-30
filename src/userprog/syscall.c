@@ -32,6 +32,12 @@ static inline bool put_user (uint8_t *udst, uint8_t byte);
 static void copy_in (void *dst_, const void *usrc_, size_t size);
 static char *copy_in_string (const char *us);
 
+typedef struct fdesc {
+  int fd;
+  struct file *file;
+  struct list_elem elem;
+} fdesc;
+
 void
 syscall_init (void) 
 {
@@ -203,7 +209,10 @@ static bool
 sys_create (char *file_name, unsigned initial_size)
 {
   char *cfile = copy_in_string (file_name);
-  return filesys_create(cfile, initial_size);
+  lock_acquire(&filesys_lock);
+  bool ret = filesys_create(cfile, initial_size);
+  lock_release(&filesys_lock);
+  return ret;
 }
 
 
@@ -268,6 +277,7 @@ sys_wait (int pid)
 static bool 
 sys_remove (const char *file)
 {
+
   return false;
 }
 
