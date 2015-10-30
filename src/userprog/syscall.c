@@ -31,12 +31,11 @@ static inline bool get_user (uint8_t *dst, const uint8_t *usrc);
 static inline bool put_user (uint8_t *udst, uint8_t byte);
 static void copy_in (void *dst_, const void *usrc_, size_t size);
 static char *copy_in_string (const char *us);
-
-typedef struct fdesc {
+struct fdesc {
   int fd;
   struct file *fptr;
   struct list_elem elem;
-} fdesc;
+};
 
 void
 syscall_init (void) 
@@ -285,14 +284,14 @@ sys_remove (const char *file)
 static int 
 sys_open (const char *file)
 {
-  char *kfile = copy_in_string (file_name);
+  char *kfile = copy_in_string (file);
   struct thread *t = thread_current ();
 
   lock_acquire(&filesys_lock);
-  file *fptr = filesys_open(kfile);
+  struct file *fptr = filesys_open(kfile);
   lock_release(&filesys_lock);
 
-  fdesc *fds = malloc(sizeof fdesc);
+  struct fdesc *fds = malloc(sizeof (struct fdesc) );
   fds->fptr = fptr;
 
   if(list_empty(&t->files))
@@ -307,7 +306,7 @@ sys_open (const char *file)
   list_push_back(&t->files, &fds->elem);
 
   free(kfile);
-  return -1;
+  return fds->fd;
 }
 
 static int 
