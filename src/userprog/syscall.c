@@ -241,23 +241,32 @@ sys_write (int fd, void *usrc_, unsigned size)
   // }
 
   // ...;
-
-
-  char kernel_buf[size];
+  is_valid_uptr(usrc_);
+  char *kernel_buf=malloc(size);
   memcpy(kernel_buf,usrc_, size);
-  if(fd == 1)
+  if(fd == STDOUT_FILENO)
   {
     putbuf(kernel_buf, size);
+    free(kernel_buf);
     return size;
   }
-  /*else
+  else
   {
     struct thread *t = thread_current();
     struct list_elem *e;
     struct fdesc *fds = NULL;
-    for()
-  }*/
-
+    for(e=list_begin(&t->files); e != list_end(&t->files); e = list_next(e))
+    {
+      fds = list_entry(e, struct fdesc, elem);
+      if(fds->fd == fd)
+      {
+        lock_acquire(&filesys_lock);
+        int written = file_write(fds->fptr, kernel_buf, size);
+        lock_release(&filesys_lock);
+        return written;
+      }
+    }
+  }
   return -1;
 }
 
