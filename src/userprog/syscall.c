@@ -267,8 +267,12 @@ sys_wait (int pid)
 static bool 
 sys_remove (const char *file)
 {
-
-  return false;
+  char *kfile = copy_in_string (file);
+  lock_acquire(&filesys_lock);
+  bool ret = filesys_remove(kfile);
+  lock_release(&filesys_lock);
+  free(kfile);
+  return ret;
 }
 
 static int 
