@@ -4,6 +4,8 @@
 #include "userprog/gdt.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/synch.h"
+#include "threads/malloc.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -67,6 +69,32 @@ exception_print_stats (void)
   printf ("Exception: %lld page faults\n", page_fault_cnt);
 }
 
+void
+except_exit ()
+{
+  int status = -1;
+  struct thread *cur = thread_current();
+  if(cur->parent)
+  {
+    lock_acquire(&cur->parent->child_list_lock);
+    struct list_elem *e;
+    for(e = list_begin(&cur->parent->children); e != list_end(&cur->parent->children); e= list_next(e))
+    {
+      struct child *chld = list_entry(e, struct child, elem);
+      if(chld->pid == cur->tid)
+      {
+        chld->status= malloc(sizeof(int));
+        *chld->status = status;
+        sema_up(&chld->wait_sema);
+      }
+    }
+    lock_release(&cur->parent->child_list_lock);
+  }
+  
+  printf ("%s: exit(%d)\n", cur->name, status);
+  thread_exit();
+}
+
 /* Handler for an exception (probably) caused by a user process. */
 static void
 kill (struct intr_frame *f) 
@@ -89,8 +117,7 @@ kill (struct intr_frame *f)
       printf ("%s: dying due to interrupt %#04x (%s).\n",
               thread_name (), f->vec_no, intr_name (f->vec_no));
       intr_dump_frame (f);
-      printf("%s: exit(%d)\n", thread_current()->name, -1);
-      thread_exit (); 
+      except_exit(); 
 
     case SEL_KCSEG:
       /* Kernel's code segment, which indicates a kernel bug.

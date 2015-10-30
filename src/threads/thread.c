@@ -102,6 +102,10 @@ thread_init (void)
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
+  list_init(&initial_thread->children);
+  initial_thread->parent=NULL;
+  lock_init(&initial_thread->child_list_lock);
+  sema_init(&initial_thread->exec_wait_sema, 0);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid_name = "main";
   initial_thread->tid = allocate_tid ();
@@ -190,7 +194,26 @@ thread_create (const char *name, int priority,
 
   /* Initialize thread. */
   init_thread (t, name, priority);
+  list_init(&t->children);
+  lock_init(&t->child_list_lock);
   tid = t->tid = allocate_tid ();
+  
+  if(tid != TID_ERROR)
+  {
+    struct child *chld = malloc(sizeof(struct child));
+    chld->pid = tid;
+    chld->status = NULL;
+    chld->exec_status = NULL;
+    chld->t = t;
+    chld->has_waited = 0;
+    sema_init(&chld->wait_sema, 0);
+    struct thread *par= thread_current();
+    t->parent= par;
+    lock_acquire(&par->child_list_lock);
+    list_push_back(&thread_current()->children, &chld->elem);
+    lock_release(&par->child_list_lock);
+    sema_init(&t->exec_wait_sema, 0);
+  }
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);

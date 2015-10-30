@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -103,6 +104,14 @@ struct thread
 
     struct list files;
 
+    struct lock child_list_lock;
+
+    struct semaphore exec_wait_sema;
+
+    struct list children;
+
+    struct thread *parent;
+
     /*End Added by Student */
 
     /* Owned by thread.c. */
@@ -149,10 +158,22 @@ int thread_get_load_avg (void);
 
 extern struct lock filesys_lock;
 
-struct fdesc {
+struct fdesc 
+{
   int fd;
   struct file *fptr;
   struct list_elem elem;
+};
+
+struct child
+{
+  tid_t pid; //pid of child (for identification purposes)
+  int *status; //NULL if child is still alive
+  int *exec_status;
+  struct thread *t; //pointer to this child
+  struct list_elem elem; //elem in children struct of parent
+  struct semaphore wait_sema; //sema for parent waiting on child
+  int has_waited;
 };
 
 /*end added by student */

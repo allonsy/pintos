@@ -65,8 +65,25 @@ start_process (void *file_name_)
   /* If load failed, quit. */
   thread_current()->tid_name = (char *)file_name;
   palloc_free_page (file_name);
-  if (!success) 
+  if (!success)
+  {
+    struct thread *cur = thread_current();
+    lock_acquire(&cur->parent->child_list_lock);
+    struct list_elem *e;
+    for(e = list_begin(&cur->parent->children); e != list_end(&cur->parent->children); e = list_next(e))
+    {
+      struct child *chld = list_entry(e, struct child, elem);
+      if(chld->pid == cur->tid)
+      {
+        chld->exec_status = malloc(sizeof(int));
+        *chld->exec_status = -1;
+      }
+    }
+    lock_release(&cur->parent->child_list_lock);
+    sema_up(&cur->parent->exec_wait_sema);
     thread_exit ();
+  }
+  sema_up(&thread_current()->parent->exec_wait_sema);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -89,8 +106,26 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid) 
 {
-  timer_msleep(1000);
-  return 0;
+  struct thread *cur = thread_current();
+  struct list_elem *e;
+  lock_acquire(&cur->child_list_lock);
+  for(e = list_begin(&cur->children); e != list_end(&cur->children); e = list_next(e))
+  {
+    struct child *chld = list_entry(e, struct child, elem);
+    if(chld->pid == child_tid)
+    {
+      if(chld->has_waited)
+      {
+        break;
+      }
+      lock_release(&cur->child_list_lock);
+      sema_down(&chld->wait_sema);
+      chld->has_waited = 1;
+      return *chld->status;
+    }
+  }
+  lock_release(&cur->child_list_lock);
+  return -1;
 }
 
 /* Free the current process's resources. */
@@ -99,13 +134,34 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   
-  struct list_elem *e;
   while(!list_empty(&cur->files))
   {
     struct fdesc *fds = list_entry(list_pop_front(&cur->files), struct fdesc, elem);
     free(fds->fptr);
     free(fds);
   }
+
+  lock_acquire(&cur->child_list_lock);
+  while(!list_empty(&cur->children))
+  {
+    struct child *chld = list_entry(list_pop_front(&cur->children), struct child, elem);
+    if(chld->status == NULL)
+    {
+      chld->t->parent= NULL;
+    }
+    else
+    {
+      free(chld->status);
+    }
+    if(chld->exec_status)
+    {
+      free(chld->exec_status);
+    }
+    free(chld);
+  }
+  lock_release(&cur->child_list_lock);
+
+
 
 
   uint32_t *pd;

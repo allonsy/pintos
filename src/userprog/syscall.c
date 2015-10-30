@@ -56,8 +56,7 @@ is_valid_uptr(void *ptr)
       }
     }
   }
-  printf ("%s: exit(%d)\n", t->name, -1);
-  thread_exit ();
+  sys_exit (-1);
   return 0;
 }
 
@@ -204,7 +203,25 @@ sys_exec (const char *ufile)
   if(pid == TID_ERROR)
     return -1;
   else
+  {
+    struct thread *cur = thread_current();
+    sema_down(&cur->exec_wait_sema);
+    struct list_elem *e;
+    lock_acquire(&cur->child_list_lock);
+    for(e=list_begin(&cur->children); e != list_end(&cur->children); e= list_next(e))
+    {
+      struct child *chld = list_entry(e, struct child, elem);
+      if(chld->pid == pid)
+      {
+        if(chld->exec_status != NULL)
+        {
+          pid = *chld->exec_status;
+        }
+      }
+    }
+    lock_release(&cur->child_list_lock);
     return (int) pid;
+  }
 }
 
 /* Create system call. */
@@ -259,6 +276,23 @@ static void
 sys_exit (int status)
 {
   struct thread *cur = thread_current();
+  if(cur->parent)
+  {
+    lock_acquire(&cur->parent->child_list_lock);
+    struct list_elem *e;
+    for(e = list_begin(&cur->parent->children); e != list_end(&cur->parent->children); e= list_next(e))
+    {
+      struct child *chld = list_entry(e, struct child, elem);
+      if(chld->pid == cur->tid)
+      {
+        chld->status= malloc(sizeof(int));
+        *chld->status = status;
+        sema_up(&chld->wait_sema);
+      }
+    }
+    lock_release(&cur->parent->child_list_lock);
+  }
+  
   printf ("%s: exit(%d)\n", cur->name, status);
   thread_exit();
 }
@@ -266,8 +300,7 @@ sys_exit (int status)
 static int 
 sys_wait (int pid)
 {
-  process_wait(pid);
-  return 0;
+  return process_wait(pid);
 }
 
 
