@@ -163,6 +163,7 @@ struct fdesc
   int fd;
   struct file *fptr;
   struct list_elem elem;
+  int deny_write;
 };
 
 struct child

@@ -261,6 +261,10 @@ sys_write (int fd, void *usrc_, unsigned size)
       fds = list_entry(e, struct fdesc, elem);
       if(fds->fd == fd)
       {
+        if(fds->deny_write)
+        {
+          return 0;
+        }
         lock_acquire(&filesys_lock);
         int written = file_write(fds->fptr, kernel_buf, size);
         lock_release(&filesys_lock);
@@ -331,9 +335,22 @@ sys_open (const char *file)
 
   if(fptr == NULL)
     return -1;
+  /*else if(t->parent && strcmp(kfile, t->parent->name)==0)
+  {
+    file_deny_write(fptr);
+  }*/
 
   struct fdesc *fds = malloc(sizeof (struct fdesc) );
   fds->fptr = fptr;
+  
+  if(strcmp(kfile, t->name) == 0)
+  {
+    fds->deny_write = 1;
+  }
+  else
+  {
+    fds->deny_write = 0;
+  }
 
   if(list_empty(&t->files))
   {
