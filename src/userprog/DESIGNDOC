@@ -1,5 +1,5 @@
 		     +--------------------------+
-       	       	     |		CS 140		|
+       	     |			CS 140			|
 		     | PROJECT 2: USER PROGRAMS	|
 		     | 	   DESIGN DOCUMENT     	|
 		     +--------------------------+
@@ -8,9 +8,8 @@
 
 >> Fill in the names and email addresses of your group members.
 
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
+Alec Snyder alsnyder@uchicago.edu
+Alejandro Younger acy1@uchicago.edu
 
 ---- PRELIMINARIES ----
 
@@ -35,14 +34,34 @@ FirstName LastName <email@domain.example>
 >> A2: Briefly describe how you implemented argument parsing.  How do
 >> you arrange for the elements of argv[] to be in the right order?
 >> How do you avoid overflowing the stack page?
+First, we parse and tokenize the command line string. Then, we store pointers
+to the beginning of each argument in a pointer array. Then, in setup_stack, we added
+an argument to pass in this array of pointers which allowed us to copy each string 
+onto the stack in the order that we tokenized them (argv[0] first). Each time we 
+copy a string onto the stack, we decrement the stack pointer. Then, after we pad
+the arguments we push pointers to each argument on the stack in reverse order
+(argv[len-1] first) so that the pointer to argv (and argv[0]) is at the lowest
+address.
+We prevent overflowing the stack page by keeping track of the length of the
+arguments and ensuring that we don't overflow the 4KB page size.
 
 ---- RATIONALE ----
 
 >> A3: Why does Pintos implement strtok_r() but not strtok()?
+strtok_r is a re-entrant and thread safe version of strtok. The original
+strtok saves a pointer to the end of the previous token in global memory
+if we had other threads calling strtok, we would overwrite this pointer.
+Therfore, strtok_r allows the user to store a pointer to the end of the
+previous token in their own stack so other threads can't overwrite it.
 
 >> A4: In Pintos, the kernel separates commands into a executable name
 >> and arguments.  In Unix-like systems, the shell does this
 >> separation.  Identify at least two advantages of the Unix approach.
+1) Performing tokenization at the shell level allows simple integration
+of shell type commands such as 'cd' and shell aliases as well as any sort
+of command preprocessing. 
+2) Performing less logic in the OS makes for shorter context switches
+and OS traps which allows processes to gain more execution time.
 
 			     SYSTEM CALLS
 			     ============
@@ -56,11 +75,24 @@ FirstName LastName <email@domain.example>
 >> B2: Describe how file descriptors are associated with open files.
 >> Are file descriptors unique within the entire OS or just within a
 >> single process?
+Each process has their own file descriptor table (we implemented it
+as a list of file descriptor structures). Each process then has their
+own set of file descriptors. This means that file descriptors are most
+likely not unique across the OS. Then, each file descriptor is associated
+with a file descriptor table struct which contains information about
+the related struct file * and read/write protection.
 
 ---- ALGORITHMS ----
 
 >> B3: Describe your code for reading and writing user data from the
 >> kernel.
+First, if we are given a pointer, we make sure the the pointer is non-null,
+maps to user address space, and points to a valid page for this process. If
+all these are true, we malloc a structure of the appropriate size any memcpy
+the data from the pointer over. Along with the primitive values passed in,
+we store all these copied values into a syscall argument array that we
+know is safe to access and contains kernel objects only. 
+Of course, we free the related memory when done.
 
 >> B4: Suppose a system call causes a full page (4,096 bytes) of data
 >> to be copied from user space into the kernel.  What is the least
@@ -68,9 +100,18 @@ FirstName LastName <email@domain.example>
 >> (e.g. calls to pagedir_get_page()) that might result?  What about
 >> for a system call that only copies 2 bytes of data?  Is there room
 >> for improvement in these numbers, and how much?
+We use malloc to obtain memory for the kernel. This calls palloc get page
+if needed (i.e) we malloc more than a page. 
 
 >> B5: Briefly describe your implementation of the "wait" system call
 >> and how it interacts with process termination.
+Each process contains a list of waiting children (via the child struct) and a reference to its
+parent(if there is one). When we wait, we find the related child struct for
+this pid and call sema down on the related semaphore for this process.
+When the target process exits, it looks at the parent, finds its child struct
+in the parent's list of children and then copies its status code into
+that struct. Then, it calls sema_up which allows the parent to wake up
+and notice the changed status.
 
 >> B6: Any access to user program memory at a user-specified address
 >> can fail due to a bad pointer value.  Such accesses must cause the
@@ -92,6 +133,14 @@ FirstName LastName <email@domain.example>
 >> fails, so it cannot return before the new executable has completed
 >> loading.  How does your code ensure this?  How is the load
 >> success/failure status passed back to the thread that calls "exec"?
+Each process has a semaphore that allows it to block when it calls exec.
+For example, when a process calls exec, it calls sema_down which forces it
+to block. Then, the child process begins the load process. If at any point
+during the load the process fails, the child process stores the return value (-1)
+into the exec_status field of the parent and calls sema_up, allowing the parent
+to wake up and notice that failure has occurred. If the load is successful, the child
+still calls sema_up however, it doesn't update the exec_status value so 
+the parent process can tell whether or not the child loaded successfully.
 
 >> B8: Consider parent process P with child process C.  How do you
 >> ensure proper synchronization and avoid race conditions when P
@@ -99,6 +148,17 @@ FirstName LastName <email@domain.example>
 >> that all resources are freed in each case?  How about when P
 >> terminates without waiting, before C exits?  After C exits?  Are
 >> there any special cases?
+We use semaphores initialized to the locked position. When a process exits,
+it finds its child struct in the parent and unlocks the related semaphore. If
+P is sleeping already, it is allowed to wake up. If P calls wait after sema_up
+then sema_down will not block and the parent process won't have to wait.
+When P termintes before waiting, P invalidates C's reference to it, thereby
+making C think that it has no parent so when C finishes, it won't call sema_up.
+It is the responsibilty of the parent on exit to free all the related memory
+of the child struct. When the parent exits, it goes through every entry,
+invalidates any pointers to it to child processes that are still alive, 
+and free all the memory along with the list. This way, since all processes
+must call thread_exit, we can ensure that there aren't any data leaks.
 
 ---- RATIONALE ----
 
@@ -107,9 +167,20 @@ FirstName LastName <email@domain.example>
 
 >> B10: What advantages or disadvantages can you see to your design
 >> for file descriptors?
+The advantages to our design is that it allows simple opening and closing
+of files (insert and filsesys_open and removing from the list). Additionally,
+opening duplicate files is handling simply as if they were separate files
+which leads to cleaner code.
+A disadvantage would be that if we wanted to implement a per file filesystem lock,
+we have no way of knowing if any other process has that file open since
+there is no global filedescriptor table.
 
 >> B11: The default tid_t to pid_t mapping is the identity mapping.
 >> If you changed it, what advantages are there to your approach?
+We kept it the same to keep the code simple. However, if we were
+to implement this, there could be advantages that we see with differentiating
+child processes of user programs to top level programs (intialized by the main
+function of the OS) which would simplify passing of status values.
 
 			   SURVEY QUESTIONS
 			   ================
@@ -122,6 +193,7 @@ the quarter.
 
 >> In your opinion, was this assignment, or any one of the three problems
 >> in it, too easy or too hard?  Did it take too long or too little time?
+We thought that it was just right on the whole in terms of difficulty and length.
 
 >> Did you find that working on a particular part of the assignment gave
 >> you greater insight into some aspect of OS design?
@@ -132,5 +204,12 @@ the quarter.
 
 >> Do you have any suggestions for the TAs to more effectively assist
 >> students, either for future quarters or the remaining projects?
+We noticed that many people were asking (ourselves included) questions
+about tests failing due to incorrect implementation of process_wait in
+the beginning (the docs say to first put in an infinite loop which forces
+the tests to timeout). Realizing that sooner could have saved us some time.
 
 >> Any other comments?
+Overall, we learned a lot about user programs and gained a lot
+of appreciation for the stack setup and system calls that we use
+all the time. We thought that it was a great and well structured project!
