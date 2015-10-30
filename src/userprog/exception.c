@@ -89,6 +89,7 @@ kill (struct intr_frame *f)
       printf ("%s: dying due to interrupt %#04x (%s).\n",
               thread_name (), f->vec_no, intr_name (f->vec_no));
       intr_dump_frame (f);
+      printf("%s: exit(%d)\n", thread_current()->name, -1);
       thread_exit (); 
 
     case SEL_KCSEG:
@@ -97,6 +98,7 @@ kill (struct intr_frame *f)
          may cause kernel exceptions--but they shouldn't arrive
          here.)  Panic the kernel to make the point.  */
       intr_dump_frame (f);
+      printf("%s: exit(%d)\n", thread_current()->name, -1);
       PANIC ("Kernel bug - unexpected interrupt in kernel"); 
 
     default:
@@ -104,6 +106,7 @@ kill (struct intr_frame *f)
          kernel. */
       printf ("Interrupt %#04x (%s) in unknown segment %04x\n",
              f->vec_no, intr_name (f->vec_no), f->cs);
+      printf("%s: exit(%d)\n", thread_current()->name, -1);
       thread_exit ();
     }
 }
