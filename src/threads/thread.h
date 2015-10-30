@@ -149,6 +149,12 @@ int thread_get_load_avg (void);
 
 extern struct lock filesys_lock;
 
+struct fdesc {
+  int fd;
+  struct file *fptr;
+  struct list_elem elem;
+};
+
 /*end added by student */
 
 #endif /* threads/thread.h */

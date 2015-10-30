@@ -31,11 +31,6 @@ static inline bool get_user (uint8_t *dst, const uint8_t *usrc);
 static inline bool put_user (uint8_t *udst, uint8_t byte);
 static void copy_in (void *dst_, const void *usrc_, size_t size);
 static char *copy_in_string (const char *us);
-struct fdesc {
-  int fd;
-  struct file *fptr;
-  struct list_elem elem;
-};
 
 void
 syscall_init (void) 
@@ -255,6 +250,13 @@ sys_write (int fd, void *usrc_, unsigned size)
     putbuf(kernel_buf, size);
     return size;
   }
+  /*else
+  {
+    struct thread *t = thread_current();
+    struct list_elem *e;
+    struct fdesc *fds = NULL;
+    for()
+  }*/
 
   return -1;
 }
@@ -336,7 +338,18 @@ sys_tell (int fd)
 static void
 sys_close (int fd)
 {
-  return;
+  struct thread *t = thread_current();
+  struct list_elem *e;
+  for(e= list_begin(&t->files); e != list_end(&t->files); e = list_next(e))
+  {
+    struct fdesc *fds = list_entry(e, struct fdesc, elem);
+    if(fds->fd == fd)
+    {
+      list_remove(e);
+      free(fds);
+      return;
+    }
+  }
 }
 
 
