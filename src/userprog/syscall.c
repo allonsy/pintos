@@ -344,21 +344,16 @@ sys_read (int fd, void *buffer, unsigned length)
   is_valid_uptr(buffer+length-1);
 
   char *kbuf = malloc(length);
-  char c;
-  int i = 0;
   int readbytes = 0;
 
   if(fd == STDIN_FILENO)
   {
-    while(i < length)
+    while(readbytes < length)
     {
-      kbuf[i] = c = input_getc();
+      kbuf[readbytes] = input_getc();
       readbytes++;
-      i++;
-      if(c == '\n')
-        break;
     }
-    memcpy(kbuf, buffer, length);
+    memcpy(buffer, kbuf, readbytes);
     free(kbuf);
     return readbytes;
   }
@@ -376,7 +371,7 @@ sys_read (int fd, void *buffer, unsigned length)
         readbytes = file_read(fds->fptr, kbuf, length);
         lock_release(&filesys_lock);
 
-        memcpy(kbuf, buffer, readbytes);
+        memcpy(buffer, kbuf, readbytes);
         free(kbuf);
         return readbytes;
       }
