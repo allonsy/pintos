@@ -31,6 +31,7 @@ static inline bool get_user (uint8_t *dst, const uint8_t *usrc);
 static inline bool put_user (uint8_t *udst, uint8_t byte);
 static void copy_in (void *dst_, const void *usrc_, size_t size);
 static char *copy_in_string (const char *us);
+
 struct fdesc {
   int fd;
   struct file *fptr;
@@ -285,11 +286,18 @@ static int
 sys_open (const char *file)
 {
   char *kfile = copy_in_string (file);
+
+  if(strlen(kfile) == 0)
+    return -1;
+
   struct thread *t = thread_current ();
 
   lock_acquire(&filesys_lock);
   struct file *fptr = filesys_open(kfile);
   lock_release(&filesys_lock);
+
+  if(fptr == NULL)
+    return -1;
 
   struct fdesc *fds = malloc(sizeof (struct fdesc) );
   fds->fptr = fptr;
@@ -312,7 +320,35 @@ sys_open (const char *file)
 static int 
 sys_filesize (int fd)
 {
-  return 0;
+  struct thread *t = thread_current ();
+  struct file *file = NULL;
+  int size;
+  list_elem *e;
+
+  for(e = list_begin(&t->files); e != list_end(&t->files); e = list_next(e))
+  {
+    struct fdesc *fds = list_entry(e, struct fdesc, elem);
+    if(fds->fd == fd)
+    {
+      file = fds->fptr;
+      break;
+    }
+  }
+
+  lock_acquire(filesys_lock);
+  size = file_length(file);
+  
+  if(file == NULL)
+  {
+    return -1;
+  }
+  else
+  {
+    lock_acquire(&filesys_lock);
+    size = file_length(file);
+    lock_release(&filesys_lock);
+    return size;
+  } 
 }
 
 static int 
