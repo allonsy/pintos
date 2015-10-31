@@ -100,7 +100,6 @@ struct thread
 #endif
 
     /* Added by student */
-    char *tid_name;
 
     struct list files;
 

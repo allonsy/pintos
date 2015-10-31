@@ -63,7 +63,6 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
   /* If load failed, quit. */
-  thread_current()->tid_name = (char *)file_name;
   palloc_free_page (file_name);
   if (!success)
   {

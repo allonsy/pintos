@@ -282,6 +282,7 @@ sys_exit (int status)
   struct thread *cur = thread_current();
   if(cur->parent)
   {
+
     lock_acquire(&cur->parent->child_list_lock);
     struct list_elem *e;
     for(e = list_begin(&cur->parent->children); e != list_end(&cur->parent->children); e= list_next(e))

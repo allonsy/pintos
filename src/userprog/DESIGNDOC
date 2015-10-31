@@ -72,6 +72,50 @@ and OS traps which allows processes to gain more execution time.
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+GLOBAL VARIABLE
+
+/* lock for filesystem code, since that code has no internal synchronization */
+
+extern struct lock filesys_lock;
+
+INDIVIDUAL STRUCTS
+
+/* struct for a thread to hold a list of its open files. 
+   allows for files to be open with multiple file descriptors */
+struct fdesc 
+{
+  int fd;
+  struct file *fptr;
+  struct list_elem elem;
+  int deny_write;
+};
+
+/* struct for a thread (assuming it is a process) to hold its children processes */
+
+struct child
+{
+  tid_t pid; //pid of child (for identification purposes)
+  int *status; //NULL if child is still alive
+  int *exec_status;
+  struct thread *t; //pointer to this child
+  struct list_elem elem; //elem in children struct of parent
+  struct semaphore wait_sema; //sema for parent waiting on child
+  int has_waited;
+};
+
+ADDED TO struct thread:
+
+    struct list files; //list of files this process has open
+
+    struct semaphore exec_wait_sema; //parent waits until exec call has a result
+
+    struct list children; //if a parent, holds your children
+
+    struct lock child_list_lock; //locks list of children
+
+    struct thread *parent; // pointer to parent process's thread
+
+
 >> B2: Describe how file descriptors are associated with open files.
 >> Are file descriptors unique within the entire OS or just within a
 >> single process?
@@ -88,8 +132,9 @@ the related struct file * and read/write protection.
 >> kernel.
 First, if we are given a pointer, we make sure the the pointer is non-null,
 maps to user address space, and points to a valid page for this process. If
-all these are true, we malloc a structure of the appropriate size any memcpy
-the data from the pointer over. Along with the primitive values passed in,
+all these are true, we malloc a structure of the appropriate size and memcpy
+the data from the pointer over. If it is not valid, we kill the process.
+Along with the primitive values passed in,
 we store all these copied values into a syscall argument array that we
 know is safe to access and contains kernel objects only. 
 Of course, we free the related memory when done.
@@ -100,8 +145,19 @@ Of course, we free the related memory when done.
 >> (e.g. calls to pagedir_get_page()) that might result?  What about
 >> for a system call that only copies 2 bytes of data?  Is there room
 >> for improvement in these numbers, and how much?
-We use malloc to obtain memory for the kernel. This calls palloc get page
-if needed (i.e) we malloc more than a page. 
+Our implementation checks the validity of every user byte that we copy in.
+Thus the max = min = # bytes to by copied. 
+
+We believe it is possible to improve this by simply checking the first and 
+last byte of the byte array to be copied in. With this method,
+the two cases are the same in that the minimum and maximum number of calls 
+to pagedir_get_page is 2. The user thinks the the bytes are contiguous
+due to the virtual memory abstraction, so if the first byte and last byte are in
+valid userspace, then since the user doesn't have memory alloction (yet), 
+the entire byte array is on at most two pages as it must have been statically
+allocated. 
+
+
 
 >> B5: Briefly describe your implementation of the "wait" system call
 >> and how it interacts with process termination.
@@ -126,6 +182,13 @@ and notice the changed status.
 >> allocated resources (locks, buffers, etc.) are freed?  In a few
 >> paragraphs, describe the strategy or strategies you adopted for
 >> managing these issues.  Give an example.
+We make exception calls as (effectively) a wrapper around sys_exit, so 
+even if a process dies ungracefully, we still call memory cleanup functions 
+embedded in sys_exit. 
+
+If an error is detected, we clean up the process's thread struct by cleaning up
+our list of children, setting their parent value to null and cleaning up the
+file descriptor table
 
 ---- SYNCHRONIZATION ----
 
@@ -164,6 +227,11 @@ must call thread_exit, we can ensure that there aren't any data leaks.
 
 >> B9: Why did you choose to implement access to user memory from the
 >> kernel in the way that you did?
+See B3 for description of implementation. This felt like a natural way to 
+do things, since invalid user pointers are supposed to kill the process if
+passed into kernel memory. So we only had to check if the user pointers 
+were valid with this function, and could write the rest of our code assuming
+that the user pointers were valid, as we would not execute code if they weren't.
 
 >> B10: What advantages or disadvantages can you see to your design
 >> for file descriptors?
@@ -197,10 +265,19 @@ We thought that it was just right on the whole in terms of difficulty and length
 
 >> Did you find that working on a particular part of the assignment gave
 >> you greater insight into some aspect of OS design?
+The stack setup portion and system call portion gave a were both good for
+additional insight. We felt that stack setup was a useful way to understand
+how pointers and function arguments interact at a low level, as opposed to
+trusting in the magic that is main(int argc, char *argv[])
+The system call portion was very useful for understanding how the 'normal'
+programs people write interact with the underlying OS, as we had to think about
+how we would want these handlers to behave if we were calling them
 
 >> Is there some particular fact or hint we should give students in
 >> future quarters to help them solve the problems?  Conversely, did you
 >> find any of our guidance to be misleading?
+Additional explanation of some of the inline assembly might make it easier
+to go into the coding with a higher level understanding. 
 
 >> Do you have any suggestions for the TAs to more effectively assist
 >> students, either for future quarters or the remaining projects?

@@ -107,7 +107,6 @@ thread_init (void)
   lock_init(&initial_thread->child_list_lock);
   sema_init(&initial_thread->exec_wait_sema, 0);
   initial_thread->status = THREAD_RUNNING;
-  initial_thread->tid_name = "main";
   initial_thread->tid = allocate_tid ();
 }
 
