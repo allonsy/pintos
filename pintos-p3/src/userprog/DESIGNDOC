@@ -1,0 +1,292 @@
+		     +--------------------------+
+       	     |			CS 140			|
+		     | PROJECT 2: USER PROGRAMS	|
+		     | 	   DESIGN DOCUMENT     	|
+		     +--------------------------+
+
+---- GROUP ----
+
+>> Fill in the names and email addresses of your group members.
+
+Alec Snyder alsnyder@uchicago.edu
+Alejandro Younger acy1@uchicago.edu
+
+---- PRELIMINARIES ----
+
+>> If you have any preliminary comments on your submission, notes for the
+>> TAs, or extra credit, please give them here.
+
+>> Please cite any offline or online sources you consulted while
+>> preparing your submission, other than the Pintos documentation, course
+>> text, lecture notes, and course staff.
+
+			   ARGUMENT PASSING
+			   ================
+
+---- DATA STRUCTURES ----
+
+>> A1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+---- ALGORITHMS ----
+
+>> A2: Briefly describe how you implemented argument parsing.  How do
+>> you arrange for the elements of argv[] to be in the right order?
+>> How do you avoid overflowing the stack page?
+First, we parse and tokenize the command line string. Then, we store pointers
+to the beginning of each argument in a pointer array. Then, in setup_stack, we added
+an argument to pass in this array of pointers which allowed us to copy each string 
+onto the stack in the order that we tokenized them (argv[0] first). Each time we 
+copy a string onto the stack, we decrement the stack pointer. Then, after we pad
+the arguments we push pointers to each argument on the stack in reverse order
+(argv[len-1] first) so that the pointer to argv (and argv[0]) is at the lowest
+address.
+We prevent overflowing the stack page by keeping track of the length of the
+arguments and ensuring that we don't overflow the 4KB page size.
+
+---- RATIONALE ----
+
+>> A3: Why does Pintos implement strtok_r() but not strtok()?
+strtok_r is a re-entrant and thread safe version of strtok. The original
+strtok saves a pointer to the end of the previous token in global memory
+if we had other threads calling strtok, we would overwrite this pointer.
+Therfore, strtok_r allows the user to store a pointer to the end of the
+previous token in their own stack so other threads can't overwrite it.
+
+>> A4: In Pintos, the kernel separates commands into a executable name
+>> and arguments.  In Unix-like systems, the shell does this
+>> separation.  Identify at least two advantages of the Unix approach.
+1) Performing tokenization at the shell level allows simple integration
+of shell type commands such as 'cd' and shell aliases as well as any sort
+of command preprocessing. 
+2) Performing less logic in the OS makes for shorter context switches
+and OS traps which allows processes to gain more execution time.
+
+			     SYSTEM CALLS
+			     ============
+
+---- DATA STRUCTURES ----
+
+>> B1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+GLOBAL VARIABLE
+
+/* lock for filesystem code, since that code has no internal synchronization */
+
+extern struct lock filesys_lock;
+
+INDIVIDUAL STRUCTS
+
+/* struct for a thread to hold a list of its open files. 
+   allows for files to be open with multiple file descriptors */
+struct fdesc 
+{
+  int fd;
+  struct file *fptr;
+  struct list_elem elem;
+  int deny_write;
+};
+
+/* struct for a thread (assuming it is a process) to hold its children processes */
+
+struct child
+{
+  tid_t pid; //pid of child (for identification purposes)
+  int *status; //NULL if child is still alive
+  int *exec_status;
+  struct thread *t; //pointer to this child
+  struct list_elem elem; //elem in children struct of parent
+  struct semaphore wait_sema; //sema for parent waiting on child
+  int has_waited;
+};
+
+ADDED TO struct thread:
+
+    struct list files; //list of files this process has open
+
+    struct semaphore exec_wait_sema; //parent waits until exec call has a result
+
+    struct list children; //if a parent, holds your children
+
+    struct lock child_list_lock; //locks list of children
+
+    struct thread *parent; // pointer to parent process's thread
+
+
+>> B2: Describe how file descriptors are associated with open files.
+>> Are file descriptors unique within the entire OS or just within a
+>> single process?
+Each process has their own file descriptor table (we implemented it
+as a list of file descriptor structures). Each process then has their
+own set of file descriptors. This means that file descriptors are most
+likely not unique across the OS. Then, each file descriptor is associated
+with a file descriptor table struct which contains information about
+the related struct file * and read/write protection.
+
+---- ALGORITHMS ----
+
+>> B3: Describe your code for reading and writing user data from the
+>> kernel.
+First, if we are given a pointer, we make sure the the pointer is non-null,
+maps to user address space, and points to a valid page for this process. If
+all these are true, we malloc a structure of the appropriate size and memcpy
+the data from the pointer over. If it is not valid, we kill the process.
+Along with the primitive values passed in,
+we store all these copied values into a syscall argument array that we
+know is safe to access and contains kernel objects only. 
+Of course, we free the related memory when done.
+
+>> B4: Suppose a system call causes a full page (4,096 bytes) of data
+>> to be copied from user space into the kernel.  What is the least
+>> and the greatest possible number of inspections of the page table
+>> (e.g. calls to pagedir_get_page()) that might result?  What about
+>> for a system call that only copies 2 bytes of data?  Is there room
+>> for improvement in these numbers, and how much?
+Our implementation checks the validity of every user byte that we copy in.
+Thus the max = min = # bytes to by copied. 
+
+We believe it is possible to improve this by simply checking the first and 
+last byte of the byte array to be copied in. With this method,
+the two cases are the same in that the minimum and maximum number of calls 
+to pagedir_get_page is 2. The user thinks the the bytes are contiguous
+due to the virtual memory abstraction, so if the first byte and last byte are in
+valid userspace, then since the user doesn't have memory alloction (yet), 
+the entire byte array is on at most two pages as it must have been statically
+allocated. 
+
+
+
+>> B5: Briefly describe your implementation of the "wait" system call
+>> and how it interacts with process termination.
+Each process contains a list of waiting children (via the child struct) and a reference to its
+parent(if there is one). When we wait, we find the related child struct for
+this pid and call sema down on the related semaphore for this process.
+When the target process exits, it looks at the parent, finds its child struct
+in the parent's list of children and then copies its status code into
+that struct. Then, it calls sema_up which allows the parent to wake up
+and notice the changed status.
+
+>> B6: Any access to user program memory at a user-specified address
+>> can fail due to a bad pointer value.  Such accesses must cause the
+>> process to be terminated.  System calls are fraught with such
+>> accesses, e.g. a "write" system call requires reading the system
+>> call number from the user stack, then each of the call's three
+>> arguments, then an arbitrary amount of user memory, and any of
+>> these can fail at any point.  This poses a design and
+>> error-handling problem: how do you best avoid obscuring the primary
+>> function of code in a morass of error-handling?  Furthermore, when
+>> an error is detected, how do you ensure that all temporarily
+>> allocated resources (locks, buffers, etc.) are freed?  In a few
+>> paragraphs, describe the strategy or strategies you adopted for
+>> managing these issues.  Give an example.
+We make exception calls as (effectively) a wrapper around sys_exit, so 
+even if a process dies ungracefully, we still call memory cleanup functions 
+embedded in sys_exit. 
+
+If an error is detected, we clean up the process's thread struct by cleaning up
+our list of children, setting their parent value to null and cleaning up the
+file descriptor table
+
+---- SYNCHRONIZATION ----
+
+>> B7: The "exec" system call returns -1 if loading the new executable
+>> fails, so it cannot return before the new executable has completed
+>> loading.  How does your code ensure this?  How is the load
+>> success/failure status passed back to the thread that calls "exec"?
+Each process has a semaphore that allows it to block when it calls exec.
+For example, when a process calls exec, it calls sema_down which forces it
+to block. Then, the child process begins the load process. If at any point
+during the load the process fails, the child process stores the return value (-1)
+into the exec_status field of the parent and calls sema_up, allowing the parent
+to wake up and notice that failure has occurred. If the load is successful, the child
+still calls sema_up however, it doesn't update the exec_status value so 
+the parent process can tell whether or not the child loaded successfully.
+
+>> B8: Consider parent process P with child process C.  How do you
+>> ensure proper synchronization and avoid race conditions when P
+>> calls wait(C) before C exits?  After C exits?  How do you ensure
+>> that all resources are freed in each case?  How about when P
+>> terminates without waiting, before C exits?  After C exits?  Are
+>> there any special cases?
+We use semaphores initialized to the locked position. When a process exits,
+it finds its child struct in the parent and unlocks the related semaphore. If
+P is sleeping already, it is allowed to wake up. If P calls wait after sema_up
+then sema_down will not block and the parent process won't have to wait.
+When P termintes before waiting, P invalidates C's reference to it, thereby
+making C think that it has no parent so when C finishes, it won't call sema_up.
+It is the responsibilty of the parent on exit to free all the related memory
+of the child struct. When the parent exits, it goes through every entry,
+invalidates any pointers to it to child processes that are still alive, 
+and free all the memory along with the list. This way, since all processes
+must call thread_exit, we can ensure that there aren't any data leaks.
+
+---- RATIONALE ----
+
+>> B9: Why did you choose to implement access to user memory from the
+>> kernel in the way that you did?
+See B3 for description of implementation. This felt like a natural way to 
+do things, since invalid user pointers are supposed to kill the process if
+passed into kernel memory. So we only had to check if the user pointers 
+were valid with this function, and could write the rest of our code assuming
+that the user pointers were valid, as we would not execute code if they weren't.
+
+>> B10: What advantages or disadvantages can you see to your design
+>> for file descriptors?
+The advantages to our design is that it allows simple opening and closing
+of files (insert and filsesys_open and removing from the list). Additionally,
+opening duplicate files is handling simply as if they were separate files
+which leads to cleaner code.
+A disadvantage would be that if we wanted to implement a per file filesystem lock,
+we have no way of knowing if any other process has that file open since
+there is no global filedescriptor table.
+
+>> B11: The default tid_t to pid_t mapping is the identity mapping.
+>> If you changed it, what advantages are there to your approach?
+We kept it the same to keep the code simple. However, if we were
+to implement this, there could be advantages that we see with differentiating
+child processes of user programs to top level programs (intialized by the main
+function of the OS) which would simplify passing of status values.
+
+			   SURVEY QUESTIONS
+			   ================
+
+Answering these questions is optional, but it will help us improve the
+course in future quarters.  Feel free to tell us anything you
+want--these questions are just to spur your thoughts.  You may also
+choose to respond anonymously in the course evaluations at the end of
+the quarter.
+
+>> In your opinion, was this assignment, or any one of the three problems
+>> in it, too easy or too hard?  Did it take too long or too little time?
+We thought that it was just right on the whole in terms of difficulty and length.
+
+>> Did you find that working on a particular part of the assignment gave
+>> you greater insight into some aspect of OS design?
+The stack setup portion and system call portion gave a were both good for
+additional insight. We felt that stack setup was a useful way to understand
+how pointers and function arguments interact at a low level, as opposed to
+trusting in the magic that is main(int argc, char *argv[])
+The system call portion was very useful for understanding how the 'normal'
+programs people write interact with the underlying OS, as we had to think about
+how we would want these handlers to behave if we were calling them
+
+>> Is there some particular fact or hint we should give students in
+>> future quarters to help them solve the problems?  Conversely, did you
+>> find any of our guidance to be misleading?
+Additional explanation of some of the inline assembly might make it easier
+to go into the coding with a higher level understanding. 
+
+>> Do you have any suggestions for the TAs to more effectively assist
+>> students, either for future quarters or the remaining projects?
+We noticed that many people were asking (ourselves included) questions
+about tests failing due to incorrect implementation of process_wait in
+the beginning (the docs say to first put in an infinite loop which forces
+the tests to timeout). Realizing that sooner could have saved us some time.
+
+>> Any other comments?
+Overall, we learned a lot about user programs and gained a lot
+of appreciation for the stack setup and system calls that we use
+all the time. We thought that it was a great and well structured project!
