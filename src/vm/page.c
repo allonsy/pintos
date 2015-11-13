@@ -1,4 +1,7 @@
 #include "page.h"
+#include "frame.h"
+#include "lib/kernel/hash.h"
+#include "threads/thread.h"
 
 #define STACK_MAX (1024 * 1024)
 
