@@ -28,6 +28,8 @@
 #include "userprog/gdt.h"
 #include "userprog/syscall.h"
 #include "userprog/tss.h"
+#include "vm/swap.h"
+#include "vm/frame.h"
 #else
 #include "tests/threads/tests.h"
 #endif
