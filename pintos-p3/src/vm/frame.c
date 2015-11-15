@@ -1,6 +1,7 @@
 #include "frame.h"
 #include "thread.h"
 #include "synch.h"
+#include "lib/debug.h"
 
 
 static struct frame *frames;
@@ -30,32 +31,38 @@ frame_init (void)
     }
 }
 
+/* when this function returns we have a page that was empty and
+   we hold its lock 
+   the implementation below does not do any eviction or swapping
+   it only tries to get a free frame */
 
-static struct frame*
+struct frame*
 try_frame_alloc_and_lock (struct page *page) 
 {
   // super simple (ie dumb) method to find a frame
-  // I ASSUME that the frame->lock is for editing the frame
-  // not sure if we need the scan lock. I ma not actually sure
-  // what hte scan lock is for... maybe it is for this though.
+  // does no eviction or smart things and stuff
 
-  //lock_acquire(&scan_lock);
   int i;
 
+  lock_acquire(&scan_lock);
+  
   for(i = 0; i < frame_cnt; i++)
   {
     struct frame *f = &frames[i];
     bool success = lock_try_acquire(&f->lock);
-    if(success && f->page != NULL)
+    if(success && f->page == NULL)
     {
       f->page = page;
-      lock_release(&f->lock);
-      //lock_release(&scan_lock);
+      //lock_release(&f->lock);
+      lock_release(&scan_lock);
       return f;
     }
   }
 
-  //lock_release(&scan_lock);
+  lock_release(&scan_lock);
+
+  PANIC("no more frames :(");
+
   return NULL;
 }
 
@@ -74,7 +81,8 @@ frame_lock (struct page *p)
 void 
 frame_free (struct frame *f)
 {
-  //lock_acquire(&scan_lock);
+  //I think we need the scanlock here since we are editing the frame table itself
+  lock_acquire(&scan_lock);
   lock_acquire(&f->lock);
   if(f->page != NULL)
   {
@@ -82,12 +90,13 @@ frame_free (struct frame *f)
     f->page = NULL;
   }
   lock_release(&f->lock);
-  //lock_release(&scan_lock);
+  lock_release(&scan_lock);
 }
 
 void 
 frame_unlock (struct frame *f) 
 {
+  //don't believe we need the scan_lock for this function
   //lock_acquire(&scan_lock);
   lock_release(&f->lock);
   //lock_release(&scan_lock);
