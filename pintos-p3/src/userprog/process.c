@@ -546,9 +546,9 @@ setup_stack (void **esp, char **arglist, int argc)
   bool success = false;
   //kpage = palloc_get_page (PAL_USER | PAL_ZERO);
 
-  if ( (p = page_allocate (((uint8_t *) PHYS_BASE) - PGSIZE, !writable)) != NULL )
+  if ( (p = page_allocate (((uint8_t *) PHYS_BASE) - PGSIZE, false)) != NULL )
   {
-    kpage = f->base;
+    kpage = p->frame->base;
     success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
     if (success)
     {
