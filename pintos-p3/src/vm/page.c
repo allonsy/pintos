@@ -24,11 +24,21 @@ destroy_page (struct hash_elem *p_, void *aux UNUSED)
 	return;
 }
 
+/* Returns the page containing the given virtual address,
+   or a null pointer if no such page exists.
+   NOTE THIS CODE COPIED FROM PINTOS DOCUMENTATION */
 static struct 
 page *page_for_addr (const void *address) 
 {
-	return NULL;
+  struct thread *t = thread_current ();
+  struct page p;
+  struct hash_elem *e;
+
+  p.addr = address;
+  e = hash_find (&t->supp_pt, &p.hash_elem);
+  return e != NULL ? hash_entry (e, struct page, hash_elem) : NULL;
 }
+
 
 static bool do_page_in (struct page *p) 
 {
@@ -91,7 +101,12 @@ page_allocate (void *vaddr, bool read_only)
 void 
 page_deallocate (void *vaddr) 
 {
-	return false;
+  struct page *p;
+  if((p = page_for_addr (vaddr)) != NULL)
+  {
+    frame_free(p->frame);
+    free(p);
+  }
 }
 
 /* Returns a hash value for page p. 
@@ -123,5 +138,6 @@ page_lock (const void *addr, bool will_write)
 void 
 page_unlock (const void *addr) 
 {
+
 	return;
 }

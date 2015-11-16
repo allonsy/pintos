@@ -125,15 +125,18 @@ void
 frame_free (struct frame *f)
 {
   //I think we need the scanlock here since we are editing the frame table itself
-  lock_acquire(&scan_lock);
-  lock_acquire(&f->lock);
-  if(f->page != NULL)
-  {
-    f->page->frame = NULL; // should we write this page back to swap here?
-    f->page = NULL;
+  if(f != NULL)
+  { 
+    lock_acquire(&scan_lock);
+    lock_acquire(&f->lock);
+    if(f->page != NULL)
+    {
+      f->page->frame = NULL; // should we write this page back to swap here?
+      f->page = NULL;
+    }
+    lock_release(&f->lock);
+    lock_release(&scan_lock);
   }
-  lock_release(&f->lock);
-  lock_release(&scan_lock);
 }
 
 void 

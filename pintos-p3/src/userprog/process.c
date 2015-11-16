@@ -499,16 +499,14 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
       uint8_t *kpage;
-      struct frame *f;
+      struct page *p;
 
       /* Get a page of memory. */
       //uint8_t *kpage = palloc_get_page(PAL_USER);
       
-
-      // use try_frame in palloc mode
-      if ( (f = try_frame_alloc_and_lock(NULL)) != NULL )
+      if ( (p = page_allocate (upage, !writable)) != NULL )
       {
-        kpage = f->base;
+        kpage = p->frame->base;
       }
       else
         return false;
@@ -517,7 +515,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
         {
           //palloc_free_page (kpage);
-          frame_free(f);
+          page_deallocate(upage);
           return false; 
         }
       memset (kpage + page_read_bytes, 0, page_zero_bytes);
@@ -526,7 +524,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       if (!install_page (upage, kpage, writable)) 
         {
           //palloc_free_page (kpage);
-          frame_free(f);
+          page_deallocate(upage);
           return false; 
         }
 
@@ -544,63 +542,63 @@ static bool
 setup_stack (void **esp, char **arglist, int argc) 
 {
   uint8_t *kpage;
-  struct frame *f;
+  struct page *p;
   bool success = false;
   //kpage = palloc_get_page (PAL_USER | PAL_ZERO);
 
-  if ( (f = try_frame_alloc_and_lock(NULL)) != NULL ) 
+  if ( (p = page_allocate (((uint8_t *) PHYS_BASE) - PGSIZE, !writable)) != NULL )
+  {
+    kpage = f->base;
+    success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
+    if (success)
     {
-      kpage = f->base;
-      success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success)
+      *esp = PHYS_BASE;
+      int length=0;
+      int i;
+      for(i=0; i< argc; i++)
       {
-        *esp = PHYS_BASE;
-        int length=0;
-        int i;
-        for(i=0; i< argc; i++)
-        {
-          int str_length = strlen(arglist[i]) + 1;
-          *esp = *esp - str_length;
-          memcpy(*esp, arglist[i], str_length);
-          arglist[i] = *esp;
-          length = length + str_length;
-        }
-        while(length % 4 !=0)
-        {
-          *esp= *esp-1;
-          length++;
-        }
-        int *stack_ptr = (int *)*esp;
-        
-        stack_ptr--;
-        *stack_ptr=0;
+        int str_length = strlen(arglist[i]) + 1;
+        *esp = *esp - str_length;
+        memcpy(*esp, arglist[i], str_length);
+        arglist[i] = *esp;
+        length = length + str_length;
+      }
+      while(length % 4 !=0)
+      {
+        *esp= *esp-1;
+        length++;
+      }
+      int *stack_ptr = (int *)*esp;
+      
+      stack_ptr--;
+      *stack_ptr=0;
 
-        char **arg_ptr = (char **)(stack_ptr);
+      char **arg_ptr = (char **)(stack_ptr);
 
-        for(i=argc - 1; i>= 0; i--)
-        {
-          arg_ptr--;
-          *arg_ptr = arglist[i];
-        }
-
+      for(i=argc - 1; i>= 0; i--)
+      {
         arg_ptr--;
-        *arg_ptr=arg_ptr+1;
-        
-        stack_ptr = (int *)arg_ptr;
-        stack_ptr--;
-        *stack_ptr = argc;
-        
-        stack_ptr--;
-        *stack_ptr = 0;
-        
-        *esp = stack_ptr;
+        *arg_ptr = arglist[i];
       }
-      else
-      {
-       // palloc_free_page (kpage);
-        frame_free(f);
-      }
+
+      arg_ptr--;
+      *arg_ptr=arg_ptr+1;
+      
+      stack_ptr = (int *)arg_ptr;
+      stack_ptr--;
+      *stack_ptr = argc;
+      
+      stack_ptr--;
+      *stack_ptr = 0;
+      
+      *esp = stack_ptr;
     }
+    else
+    {
+     // palloc_free_page (kpage);
+      page_deallocate(((uint8_t *) PHYS_BASE) - PGSIZE);
+    }
+  }
   return success;
 }
 
