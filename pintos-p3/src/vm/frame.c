@@ -79,7 +79,7 @@ try_frame_alloc_and_lock (void)
 
   lock_release(&scan_lock);
 
-  PANIC("no more frames :(");
+  //PANIC("no more frames :(");
 
   return NULL;
 }

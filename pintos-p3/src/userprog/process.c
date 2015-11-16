@@ -498,14 +498,17 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
          and zero the final PAGE_ZERO_BYTES bytes. */
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
+      uint8_t *kpage;
+      struct frame *f;
 
       /* Get a page of memory. */
       //uint8_t *kpage = palloc_get_page(PAL_USER);
-
-      struct frame *f = try_frame_alloc_and_lock();
-      uint8_t *kpage = f->base;
-
-      if ( /* f == NULL */ kpage == NULL )
+      
+      if ( (f = try_frame_alloc_and_lock()) != NULL )
+      {
+        kpage = f->base;
+      }
+      else
         return false;
 
       /* Load this page. */
@@ -539,14 +542,13 @@ static bool
 setup_stack (void **esp, char **arglist, int argc) 
 {
   uint8_t *kpage;
+  struct frame *f;
   bool success = false;
   //kpage = palloc_get_page (PAL_USER | PAL_ZERO);
 
-  struct frame *f = try_frame_alloc_and_lock();
-  kpage = f->base;
-
-  if ( /* f != NULL */ kpage != NULL ) 
+  if ( (f = try_frame_alloc_and_lock()) != NULL ) 
     {
+      kpage = f->base;
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
       {
