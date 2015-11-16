@@ -62,7 +62,8 @@ page_accessed_recently (struct page *p)
 struct page * 
 page_allocate (void *vaddr, bool read_only) 
 {
-	struct page *p = malloc(sizeof struct page);
+  struct page *p;
+  p = malloc(sizeof *p);
 
 	if(p == NULL)
 	{
