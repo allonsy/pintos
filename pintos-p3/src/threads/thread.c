@@ -12,6 +12,7 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
+#include "lib/kernel/hash.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
