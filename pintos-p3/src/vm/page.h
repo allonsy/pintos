@@ -39,6 +39,7 @@ struct page
 hash_hash_func page_hash;
 hash_less_func page_less;
 
+void page_init (void);
 void page_exit (void);
 bool page_in (void *fault_addr);
 bool page_out (struct page *p);

@@ -10,6 +10,16 @@
 
 #define STACK_MAX (1024 * 1024)
 
+// supplemental page table
+static struct hash spt;
+
+void 
+page_init (void)
+{
+	// no guarantees this is correct
+	hash_init(&spt, page_hash, page_less, NULL);
+}
+
 
 static void 
 destroy_page (struct hash_elem *p_, void *aux UNUSED)  
@@ -55,6 +65,20 @@ page_accessed_recently (struct page *p)
 struct page * 
 page_allocate (void *vaddr, bool read_only) 
 {
+	struct page *p = malloc(sizeof struct page);
+
+	if(p == NULL)
+	{
+		PANIC("no memory for struct page allocation");
+		return NULL;
+	}
+
+	p->addr = vaddr;
+	p->read_only = read_only;
+	p->thread = thread_current ();
+
+
+
 	return false;
 }
 
