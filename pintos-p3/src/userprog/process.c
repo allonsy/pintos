@@ -504,7 +504,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* Get a page of memory. */
       //uint8_t *kpage = palloc_get_page(PAL_USER);
       
-      if ( (f = try_frame_alloc_and_lock()) != NULL )
+
+      // use try_frame in palloc mode
+      if ( (f = try_frame_alloc_and_lock(NULL)) != NULL )
       {
         kpage = f->base;
       }
@@ -546,7 +548,7 @@ setup_stack (void **esp, char **arglist, int argc)
   bool success = false;
   //kpage = palloc_get_page (PAL_USER | PAL_ZERO);
 
-  if ( (f = try_frame_alloc_and_lock()) != NULL ) 
+  if ( (f = try_frame_alloc_and_lock(NULL)) != NULL ) 
     {
       kpage = f->base;
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
