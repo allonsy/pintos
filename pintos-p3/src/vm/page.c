@@ -10,14 +10,11 @@
 
 #define STACK_MAX (1024 * 1024)
 
-// supplemental page table
-static struct hash spt;
 
-void 
-page_init (void)
+bool
+page_init (struct hash *h)
 {
-	// no guarantees this is correct
-	hash_init(&spt, page_hash, page_less, NULL);
+	return hash_init(h, page_hash, page_less, NULL);
 }
 
 
@@ -77,9 +74,17 @@ page_allocate (void *vaddr, bool read_only)
 	p->read_only = read_only;
 	p->thread = thread_current ();
 
+	struct frame *f = try_frame_alloc_and_lock (p);
 
+	if(f == NULL)
+	{	
+		free(p);
+		return NULL;
+	}
 
-	return false;
+	p->frame = f;
+
+	return p;
 }
 
 void 
@@ -88,16 +93,24 @@ page_deallocate (void *vaddr)
 	return false;
 }
 
-unsigned 
-page_hash (const struct hash_elem *e, void *aux UNUSED) 
+/* Returns a hash value for page p. 
+   Note, this code copied from the pintos documentation */
+unsigned
+page_hash (const struct hash_elem *p_, void *aux UNUSED)
 {
-	return 0;
+  const struct page *p = hash_entry (p_, struct page, hash_elem);
+  return hash_bytes (&p->addr, sizeof p->addr);
 }
 
-bool 
-page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED) 
+/* Returns true if page a precedes page b. 
+   Note, this code copied from the pintos documentation */
+bool
+page_less (const struct hash_elem *a_, const struct hash_elem *b_,
+           void *aux UNUSED)
 {
-	return false;
+  const struct page *a = hash_entry (a_, struct page, hash_elem);
+  const struct page *b = hash_entry (b_, struct page, hash_elem);
+  return a->addr < b->addr;
 }
 
 bool 

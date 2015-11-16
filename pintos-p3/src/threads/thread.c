@@ -213,6 +213,9 @@ thread_create (const char *name, int priority,
     list_push_back(&thread_current()->children, &chld->elem);
     lock_release(&par->child_list_lock);
     sema_init(&t->exec_wait_sema, 0);
+
+    // added for VM
+    bool success = page_init(&t->supp_pt);
   }
 
   /* Stack frame for kernel_thread(). */

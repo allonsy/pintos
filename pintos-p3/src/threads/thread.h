@@ -111,6 +111,8 @@ struct thread
 
     struct thread *parent;
 
+    struct hash supp_pt; /* holds the supplementary page table */
+
     /*End Added by Student */
 
     /* Owned by thread.c. */
