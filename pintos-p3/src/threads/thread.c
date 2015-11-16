@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -110,7 +111,7 @@ thread_init (void)
   initial_thread->tid = allocate_tid ();
 }
 
-/* Free the current proc
+/* Free the current proc */
 
 /* Starts preemptive thread scheduling by enabling interrupts.
    Also creates the idle thread. */

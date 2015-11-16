@@ -1,7 +1,12 @@
+#ifndef VM_PAGE_H
+#define VM_PAGE_H
 
 #include "frame.h"
 #include "lib/kernel/hash.h"
 #include "threads/thread.h"
+#include "devices/block.h"
+#include "filesys/off_t.h"
+
 
 
 /* Virtual page. */
@@ -44,3 +49,5 @@ unsigned page_hash (const struct hash_elem *e, void *aux UNUSED);
 bool page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);
 bool page_lock (const void *addr, bool will_write);
 void page_unlock (const void *addr);
+
+#endif /* VM_PAGE_H */

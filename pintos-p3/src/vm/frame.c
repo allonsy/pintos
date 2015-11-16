@@ -1,7 +1,8 @@
-#include "frame.h"
-#include "thread.h"
-#include "synch.h"
+#include "vm/frame.h"
+#include "threads/thread.h"
+#include "threads/synch.h"
 #include "lib/debug.h"
+#include "threads/loader.h"
 
 
 static struct frame *frames;
@@ -15,6 +16,9 @@ void
 frame_init (void)
 {
   void *base;
+  int i = 0;
+
+  
 
   lock_init (&scan_lock);
 
@@ -22,13 +26,15 @@ frame_init (void)
   if (frames == NULL)
     PANIC ("out of memory allocating page frames");
 
-  while ((base = palloc_get_page (PAL_USER)) != NULL)
-    {
-      struct frame *f = &frames[frame_cnt++];
-      lock_init (&f->lock);
-      f->base = base;
-      f->page = NULL;
-    }
+  while ((base = palloc_get_page (PAL_USER)) != NULL && i < init_ram_pages)
+  {
+
+    struct frame *f = &frames[frame_cnt++];
+    lock_init (&f->lock);
+    f->base = base;
+    f->page = NULL;
+    i++;
+  }
 }
 
 /* when this function returns we have a page that was empty and
@@ -36,8 +42,12 @@ frame_init (void)
    the implementation below does not do any eviction or swapping
    it only tries to get a free frame */
 
+// struct frame*
+// try_frame_alloc_and_lock (struct page *page) 
+
+// temporary to make this a fake palloc
 struct frame*
-try_frame_alloc_and_lock (struct page *page) 
+try_frame_alloc_and_lock (void)
 {
   // super simple (ie dumb) method to find a frame
   // does no eviction or smart things and stuff
@@ -50,12 +60,20 @@ try_frame_alloc_and_lock (struct page *page)
   {
     struct frame *f = &frames[i];
     bool success = lock_try_acquire(&f->lock);
-    if(success && f->page == NULL)
+    if(success)
     {
-      f->page = page;
-      //lock_release(&f->lock);
-      lock_release(&scan_lock);
-      return f;
+      if(f->page == NULL)
+      {
+        //f->page = page;
+        f->page = (struct page *) 1;
+        lock_release(&f->lock);
+        lock_release(&scan_lock);
+        return f;
+      }
+      else
+      {
+        lock_release(&f->lock);
+      }
     }
   }
 
@@ -71,7 +89,7 @@ frame_lock (struct page *p)
 {
   // not sure if the scan_lock acquisition is necessary
   lock_acquire(&scan_lock);
-  lock_acquire(&page->frame->lock);
+  lock_acquire(&p->frame->lock);
   lock_release(&scan_lock);
 }
 
@@ -84,11 +102,12 @@ frame_free (struct frame *f)
   //I think we need the scanlock here since we are editing the frame table itself
   lock_acquire(&scan_lock);
   lock_acquire(&f->lock);
-  if(f->page != NULL)
-  {
-    f->page->frame = NULL; // should we write this page back to swap here?
-    f->page = NULL;
-  }
+  // if(f->page != NULL)
+  // {
+  //   f->page->frame = NULL; // should we write this page back to swap here?
+  //   f->page = NULL;
+  // }
+  f->page == NULL;
   lock_release(&f->lock);
   lock_release(&scan_lock);
 }

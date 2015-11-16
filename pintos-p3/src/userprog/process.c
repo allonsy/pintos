@@ -19,6 +19,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
+#include "vm/frame.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -499,14 +500,19 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      uint8_t *kpage = palloc_get_page (PAL_USER);
-      if (kpage == NULL)
+      //uint8_t *kpage = palloc_get_page(PAL_USER);
+
+      struct frame *f = try_frame_alloc_and_lock();
+      uint8_t *kpage = f->base;
+
+      if ( /* f == NULL */ kpage == NULL )
         return false;
 
       /* Load this page. */
       if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
         {
-          palloc_free_page (kpage);
+          //palloc_free_page (kpage);
+          frame_free(f);
           return false; 
         }
       memset (kpage + page_read_bytes, 0, page_zero_bytes);
@@ -514,7 +520,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* Add the page to the process's address space. */
       if (!install_page (upage, kpage, writable)) 
         {
-          palloc_free_page (kpage);
+          //palloc_free_page (kpage);
+          frame_free(f);
           return false; 
         }
 
@@ -533,8 +540,12 @@ setup_stack (void **esp, char **arglist, int argc)
 {
   uint8_t *kpage;
   bool success = false;
-  kpage = palloc_get_page (PAL_USER | PAL_ZERO);
-  if (kpage != NULL) 
+  //kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+
+  struct frame *f = try_frame_alloc_and_lock();
+  kpage = f->base;
+
+  if ( /* f != NULL */ kpage != NULL ) 
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
@@ -581,7 +592,10 @@ setup_stack (void **esp, char **arglist, int argc)
         *esp = stack_ptr;
       }
       else
-        palloc_free_page (kpage);
+      {
+       // palloc_free_page (kpage);
+        frame_free(f);
+      }
     }
   return success;
 }
