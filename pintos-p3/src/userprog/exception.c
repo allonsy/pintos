@@ -7,6 +7,7 @@
 #include "threads/synch.h"
 #include "threads/malloc.h"
 #include "threads/vaddr.h"
+#include "userprog/syscall.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -182,15 +183,8 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-
-  // if(is_user_vaddr (fault_addr))
-  //   PANIC("page_fault: user address");
-  // else
-  //   PANIC("page_fault: kernel address");
-
-  if(not_present && user)
+  if(not_present)
   {
-    //PANIC("page_fault: fault_addr %p", fault_addr);
 
     struct page *p2 = page_for_addr (fault_addr);
     if(p2 == NULL)
@@ -198,26 +192,27 @@ page_fault (struct intr_frame *f)
       PANIC("page_fault: SPT doesn't have address %p. PHYS_BASE %p", fault_addr, PHYS_BASE);
     }
 
-    //PANIC("page_fault: about to page_in");
     if(!page_in(fault_addr))
     {
-      //PANIC("page_fault: page_in error");
+      PANIC("page_fault: page_in error");
       thread_exit ();
     }
-    //PANIC("page_fault: page_in worked");
+    return;
+  }
+  else
+  {
+    if(user)
+    {
+      PANIC("page_fault: user tried to write to read only memory");
+      thread_exit();
+    }
+    else
+    {
+      PANIC("page_fault: WHY IS KERNEL TRYING TO WRITE TO READ ONLY PAGES?!");
+    }
     return;
   }
 
-  PANIC("page_fault: kernel page fault... womp");
-
-  /* To implement virtual memory, delete the rest of the function
-     body, and replace it with code that brings in the page to
-     which fault_addr refers. */
-  // printf ("Page fault at %p: %s error %s page in %s context.\n",
-  //         fault_addr,
-  //         not_present ? "not present" : "rights violation",
-  //         write ? "writing" : "reading",
-  //         user ? "user" : "kernel");
-  //kill (f);
+  PANIC("page_fault: WE SHOULD NOT SEE THIS PANIC, BUT\nkernel page fault on pointer %p, PHYS_BASE: %p, user: %d, not_present: %d", fault_addr, PHYS_BASE, user, not_present);
 }
 

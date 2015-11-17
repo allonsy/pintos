@@ -65,7 +65,7 @@ page_in (void *fault_addr)
   struct page *p = page_for_addr(fault_addr);
 
   if(p == NULL)
-    PANIC("address passed into page_in not in SPT");
+    PANIC("page_in: address %p not in SPT", fault_addr);
 
   struct frame *f = try_frame_alloc_and_lock (p);
 
@@ -74,17 +74,23 @@ page_in (void *fault_addr)
   if(f != NULL)
   {
     
+    off_t read;
 
     if(p->file != NULL)
     {
-      if(file_read_at (p->file, f->base, p->file_bytes, p->file_offset) != p->file_bytes)
+
+      struct file *rfile = file_reopen(p->file);
+      read = file_read_at (rfile, f->base, p->file_bytes, p->file_offset);
+
+      if(read != p->file_bytes)
       {
         frame_unlock(f);
         frame_free(f);
+        PANIC("page_in: unable to read correct number of bytes from file %p, read %d, expected %d", p->file, read, p->file_bytes);
         return false;
       }
 
-      memset (f->base + p->file_bytes, 0, PGSIZE - p->file_bytes);
+      memset (f->base + read, 0, PGSIZE - read);
     }
     else //page has no file, probably a stack page
     {
@@ -103,6 +109,7 @@ page_in (void *fault_addr)
       {
         frame_unlock(f);
         frame_free(f);
+        PANIC("page_in: failed to set page table entry");
         return false;
       }
     }
@@ -110,6 +117,7 @@ page_in (void *fault_addr)
     {
       frame_unlock(f);
       frame_free(f);
+      PANIC("page_in: thread_current returned NULL");
       return false;
     }
   }

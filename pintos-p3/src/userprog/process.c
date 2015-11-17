@@ -642,7 +642,9 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
 
+  off_t len = file_length(file);
 
+  read_bytes = read_bytes > (len - ofs) ? (len - ofs) : read_bytes;
 
   off_t offset_tracker = ofs;
   while (read_bytes > 0 || zero_bytes > 0) 
@@ -663,7 +665,7 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
       p->file_bytes = page_read_bytes;
 
       /* Advance. */
-      offset_tracker += PGSIZE;
+      offset_tracker += page_read_bytes;
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
@@ -687,6 +689,9 @@ vm_setup_stack (void **esp, char **arglist, int argc)
   if ((p = page_allocate (((uint8_t *) PHYS_BASE) - PGSIZE, false)) != NULL ) 
   {
 
+      p->file = NULL;
+      p->file_offset = 0;
+      p->file_bytes = 0;
       
       *esp = PHYS_BASE;
       int length=0;
@@ -697,23 +702,29 @@ vm_setup_stack (void **esp, char **arglist, int argc)
         int str_length = strlen(arglist[i]) + 1;
         *esp = *esp - str_length;
 
-        struct page *p2 = page_for_addr (*esp);
-        if(p2 == NULL)
-        {
-          PANIC("vm_setup_stack: can't seem to find the page we want...");
-        }
+        // struct page *p2 = page_for_addr (*esp);
+        // if(p2 == NULL)
+        // {
+        //   PANIC("vm_setup_stack: can't seem to find the page we want...");
+        // }
 
         //PANIC("vm_setup_stack: WE SEE THIS PANIC");
         memcpy(*esp, arglist[i], str_length);
-        PANIC("vm_setup_stack: WE ARE NOT SEEING THIS PANIC, INSTEAD WE DON'T THINK THAT THE SPT HAS AN ENTRY FOR *esp");
+        //PANIC("vm_setup_stack: WE ARE NOT SEEING THIS PANIC, INSTEAD WE DON'T THINK THAT THE SPT HAS AN ENTRY FOR *esp");
         arglist[i] = *esp;
         length = length + str_length;
       }
+
+      //PANIC("vm_setup_stack: made it through the for loop");
+
       while(length % 4 !=0)
       {
         *esp= *esp-1;
         length++;
       }
+
+      //PANIC("vm_setup_stack: made it through the while loop");
+
       int *stack_ptr = (int *)*esp;
       
       stack_ptr--;
@@ -727,6 +738,8 @@ vm_setup_stack (void **esp, char **arglist, int argc)
         *arg_ptr = arglist[i];
       }
 
+      //PANIC("vm_setup_stack: made it through the second for loop");
+
       arg_ptr--;
       *arg_ptr=arg_ptr+1;
       
@@ -738,6 +751,8 @@ vm_setup_stack (void **esp, char **arglist, int argc)
       *stack_ptr = 0;
       
       *esp = stack_ptr;
+
+      //PANIC("vm_setup_stack: about to return true");
       return true;
   }
   return false;
