@@ -74,29 +74,45 @@ page_in (void *fault_addr)
   if(f != NULL)
   {
     
-    if(file_read_at (p->file, f->base, p->file_bytes, p->file_offset) != p->file_bytes)
+
+    if(p->file != NULL)
+    {
+      if(file_read_at (p->file, f->base, p->file_bytes, p->file_offset) != p->file_bytes)
+      {
+        frame_unlock(f);
+        frame_free(f);
+        return false;
+      }
+
+      memset (f->base + p->file_bytes, 0, PGSIZE - p->file_bytes);
+    }
+    else //page has no file, probably a stack page
+    {
+      memset (f->base, 0, PGSIZE);
+    }
+
+    struct thread *t;
+    if((t = thread_current ()) != NULL)
+    {
+      if(pagedir_set_page (t->pagedir, p->addr, f->base, !p->read_only))
+      {
+        frame_unlock(f);
+        return true;
+      }
+      else
+      {
+        frame_unlock(f);
+        frame_free(f);
+        return false;
+      }
+    }
+    else
     {
       frame_unlock(f);
       frame_free(f);
       return false;
     }
-
-    memset (f->base + p->file_bytes, 0, PGSIZE - p->file_bytes);
-
-    frame_unlock(f);
-
-    struct thread *t = thread_current ();
-
-    if(pagedir_set_page (t->pagedir, p->addr, f->base, !p->read_only))
-      return true;
-    else
-    {
-      frame_free(f);
-      return false;
-    }
   }
-
-
 
   PANIC("page_in: no frames left :(");
   return false;
