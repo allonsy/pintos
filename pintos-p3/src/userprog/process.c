@@ -380,6 +380,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
         }
     }
 
+  //PANIC("load: before stack setup");
+
   /* Set up stack. */
   char *token;
   char *save_ptr = NULL;
@@ -413,6 +415,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
     }
     token = strtok_r(NULL, " ", &save_ptr);
   }
+
+  //PANIC("load: after stack setup");
 
   if (!vm_setup_stack (esp, arglist, count))
   {
@@ -684,7 +688,7 @@ vm_setup_stack (void **esp, char **arglist, int argc)
   {
 
       
-      *esp = PHYS_BASE - 1;
+      *esp = PHYS_BASE;
       int length=0;
       int i;
 

@@ -6,6 +6,7 @@
 #include "threads/thread.h"
 #include "threads/synch.h"
 #include "threads/malloc.h"
+#include "threads/vaddr.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -167,6 +168,8 @@ page_fault (struct intr_frame *f)
      (#PF)". */
   asm ("movl %%cr2, %0" : "=r" (fault_addr));
 
+
+
   /* Turn interrupts back on (they were only off so that we could
      be assured of reading CR2 before it changed). */
   intr_enable ();
@@ -179,13 +182,20 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  if(not_present && user)
+
+  // if(is_user_vaddr (fault_addr))
+  //   PANIC("page_fault: user address");
+  // else
+  //   PANIC("page_fault: kernel address");
+
+  if(not_present)
   {
+    //PANIC("page_fault: fault_addr %p", fault_addr);
 
     struct page *p2 = page_for_addr (fault_addr);
     if(p2 == NULL)
     {
-      PANIC("page_fault: can't seem to find the page we want in SPT");
+      PANIC("page_fault: SPT doesn't have address %p. PHYS_BASE %p", fault_addr, PHYS_BASE);
     }
 
     //PANIC("page_fault: about to page_in");
