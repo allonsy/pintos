@@ -188,7 +188,7 @@ page_fault (struct intr_frame *f)
   // else
   //   PANIC("page_fault: kernel address");
 
-  if(not_present)
+  if(not_present && user)
   {
     //PANIC("page_fault: fault_addr %p", fault_addr);
 
@@ -201,14 +201,14 @@ page_fault (struct intr_frame *f)
     //PANIC("page_fault: about to page_in");
     if(!page_in(fault_addr))
     {
-      PANIC("page_fault: page_in error");
+      //PANIC("page_fault: page_in error");
       thread_exit ();
     }
-    PANIC("page_fault: page_in worked");
+    //PANIC("page_fault: page_in worked");
     return;
   }
 
-  PANIC("page_fault: wut is happening?!");
+  PANIC("page_fault: kernel page fault... womp");
 
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to

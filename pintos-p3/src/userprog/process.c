@@ -703,7 +703,7 @@ vm_setup_stack (void **esp, char **arglist, int argc)
           PANIC("vm_setup_stack: can't seem to find the page we want...");
         }
 
-        PANIC("vm_setup_stack: WE SEE THIS PANIC");
+        //PANIC("vm_setup_stack: WE SEE THIS PANIC");
         memcpy(*esp, arglist[i], str_length);
         PANIC("vm_setup_stack: WE ARE NOT SEEING THIS PANIC, INSTEAD WE DON'T THINK THAT THE SPT HAS AN ENTRY FOR *esp");
         arglist[i] = *esp;
