@@ -67,7 +67,6 @@ try_frame_alloc_and_lock (struct page *page)
         {
           //f->page = page;
           f->page = (struct page *) 1;
-          lock_release(&f->lock);
           lock_release(&scan_lock);
           return f;
         }
@@ -89,7 +88,6 @@ try_frame_alloc_and_lock (struct page *page)
         if(f->page == NULL)
         {
           f->page = page;
-          lock_release(&f->lock);
           lock_release(&scan_lock);
           return f;
         }
@@ -109,13 +107,9 @@ try_frame_alloc_and_lock (struct page *page)
 }
 
 void 
-frame_lock (struct page *page) 
+frame_lock (struct frame *f) 
 {
-  //don't believe we need the scan_lock for this function
-  // left in comments for posterity
-  //lock_acquire(&scan_lock);
-  lock_acquire(&page->frame->lock);
-  //lock_release(&scan_lock);
+  lock_acquire(&f->lock);
 }
 
 // should this take in a page or a frame? I am not sure. 
@@ -124,27 +118,18 @@ frame_lock (struct page *page)
 void 
 frame_free (struct frame *f)
 {
-  //I think we need the scanlock here since we are editing the frame table itself
+  lock_acquire(&f->lock);
   if(f != NULL)
-  { 
-    lock_acquire(&scan_lock);
-    lock_acquire(&f->lock);
+  {
     if(f->page != NULL)
-    {
-      f->page->frame = NULL; // should we write this page back to swap here?
-      f->page = NULL;
-    }
-    lock_release(&f->lock);
-    lock_release(&scan_lock);
+      f->page->frame = NULL;
+    f->page = NULL;
   }
+  lock_release(&f->lock);
 }
 
 void 
-frame_unlock (struct page *page) 
+frame_unlock (struct frame *f) 
 {
-  //don't believe we need the scan_lock for this function
-  // left in comments for posterity
-  //lock_acquire(&scan_lock);
-  lock_release(&page->frame->lock);
-  //lock_release(&scan_lock);
+  lock_release(&f->lock);
 }

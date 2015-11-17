@@ -14,14 +14,14 @@
 bool
 page_init (struct hash *h)
 {
-	return hash_init(h, page_hash, page_less, NULL);
+  return hash_init(h, page_hash, page_less, NULL);
 }
 
 
 static void 
 destroy_page (struct hash_elem *p_, void *aux UNUSED)  
 {
-	return;
+  return;
 }
 
 /* Returns the page containing the given virtual address,
@@ -42,31 +42,32 @@ page *page_for_addr (const void *address)
 
 static bool do_page_in (struct page *p) 
 {
-	return false;
+  return false;
 }
 
 void 
 page_exit (void)  
 {
-	return;
+  return;
 }
 
 bool 
 page_in (void *fault_addr) 
 {
-	return false;
+
+  return false;
 }
 
 bool 
 page_out (struct page *p) 
 {
-	return false;
+  return false;
 }
 
 bool 
 page_accessed_recently (struct page *p) 
 {
-	return false;
+  return false;
 }
 
 struct page * 
@@ -75,27 +76,19 @@ page_allocate (void *vaddr, bool read_only)
   struct page *p;
   p = malloc(sizeof *p);
 
-	if(p == NULL)
-	{
-		PANIC("no memory for struct page allocation");
-		return NULL;
-	}
+  if(p == NULL)
+  {
+    PANIC("no memory for struct page allocation");
+    return NULL;
+  }
 
-	p->addr = vaddr;
-	p->read_only = read_only;
-	p->thread = thread_current ();
+  p->addr = vaddr;
+  p->read_only = read_only;
+  p->thread = thread_current ();
 
-	struct frame *f = try_frame_alloc_and_lock (p);
+  p->frame = NULL;
 
-	if(f == NULL)
-	{	
-		free(p);
-		return NULL;
-	}
-
-	p->frame = f;
-
-	return p;
+  return p;
 }
 
 void 
@@ -132,12 +125,12 @@ page_less (const struct hash_elem *a_, const struct hash_elem *b_,
 bool 
 page_lock (const void *addr, bool will_write) 
 {
-	return false;
+  return false;
 }
 
 void 
 page_unlock (const void *addr) 
 {
 
-	return;
+  return;
 }

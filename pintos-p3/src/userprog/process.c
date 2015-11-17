@@ -499,23 +499,28 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
       uint8_t *kpage;
-      struct page *p;
+      struct frame *f;
 
       /* Get a page of memory. */
       //uint8_t *kpage = palloc_get_page(PAL_USER);
       
-      if ( (p = page_allocate (upage, !writable)) != NULL )
+
+      // use try_frame in palloc mode
+      if ( (f = try_frame_alloc_and_lock(NULL)) != NULL )
       {
-        kpage = p->frame->base;
+        kpage = f->base;
       }
       else
+      {
         return false;
+      }
 
       /* Load this page. */
       if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
         {
           //palloc_free_page (kpage);
-          page_deallocate(upage);
+          frame_unlock(f);
+          frame_free(f);
           return false; 
         }
       memset (kpage + page_read_bytes, 0, page_zero_bytes);
@@ -524,9 +529,12 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       if (!install_page (upage, kpage, writable)) 
         {
           //palloc_free_page (kpage);
-          page_deallocate(upage);
+          frame_unlock(f);
+          frame_free(f);
           return false; 
         }
+
+      frame_unlock(f);
 
       /* Advance. */
       read_bytes -= page_read_bytes;
@@ -542,13 +550,13 @@ static bool
 setup_stack (void **esp, char **arglist, int argc) 
 {
   uint8_t *kpage;
-  struct page *p;
+  struct frame *f;
   bool success = false;
   //kpage = palloc_get_page (PAL_USER | PAL_ZERO);
 
-  if ( (p = page_allocate (((uint8_t *) PHYS_BASE) - PGSIZE, false)) != NULL )
+  if ( (f = try_frame_alloc_and_lock(NULL)) != NULL ) 
   {
-    kpage = p->frame->base;
+    kpage = f->base;
     success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
     if (success)
     {
@@ -596,7 +604,8 @@ setup_stack (void **esp, char **arglist, int argc)
     else
     {
      // palloc_free_page (kpage);
-      page_deallocate(((uint8_t *) PHYS_BASE) - PGSIZE);
+      frame_unlock(f);
+      frame_free(f);
     }
   }
   return success;
