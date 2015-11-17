@@ -179,21 +179,35 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  // if(user && not_present)
-  // {
-  //   if(!page_in(fault_addr))
-  //     thread_exit ();
-  //   return;
-  // }
+  if(not_present && user)
+  {
+
+    struct page *p2 = page_for_addr (fault_addr);
+    if(p2 == NULL)
+    {
+      PANIC("page_fault: can't seem to find the page we want in SPT");
+    }
+
+    //PANIC("page_fault: about to page_in");
+    if(!page_in(fault_addr))
+    {
+      PANIC("page_fault: page_in error");
+      thread_exit ();
+    }
+    PANIC("page_fault: page_in worked");
+    return;
+  }
+
+  PANIC("page_fault: wut is happening?!");
 
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
      which fault_addr refers. */
-  printf ("Page fault at %p: %s error %s page in %s context.\n",
-          fault_addr,
-          not_present ? "not present" : "rights violation",
-          write ? "writing" : "reading",
-          user ? "user" : "kernel");
-  kill (f);
+  // printf ("Page fault at %p: %s error %s page in %s context.\n",
+  //         fault_addr,
+  //         not_present ? "not present" : "rights violation",
+  //         write ? "writing" : "reading",
+  //         user ? "user" : "kernel");
+  //kill (f);
 }
 

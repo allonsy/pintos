@@ -216,7 +216,8 @@ thread_create (const char *name, int priority,
     sema_init(&t->exec_wait_sema, 0);
 
     // added for VM
-    bool success = page_init(&t->supp_pt);
+    if(!page_init(&t->supp_pt))
+      return TID_ERROR;
   }
 
   /* Stack frame for kernel_thread(). */

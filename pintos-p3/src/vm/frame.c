@@ -88,6 +88,7 @@ try_frame_alloc_and_lock (struct page *page)
         if(f->page == NULL)
         {
           f->page = page;
+          page->frame = f;
           lock_release(&scan_lock);
           return f;
         }

@@ -19,7 +19,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
-#include "vm/frame.h"
+#include "vm/page.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -264,10 +264,16 @@ struct Elf32_Phdr
 #define PF_R 4          /* Readable. */
 
 static bool setup_stack (void **esp, char **arglist, int argc);
+static bool vm_setup_stack (void **esp, char **arglist, int argc);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
                           bool writable);
+static bool vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
+                          uint32_t read_bytes, uint32_t zero_bytes,
+                          bool writable);
+
+
 
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
@@ -364,10 +370,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
                   read_bytes = 0;
                   zero_bytes = ROUND_UP (page_offset + phdr.p_memsz, PGSIZE);
                 }
-              if (!load_segment (file, file_page, (void *) mem_page,
+              if (!vm_load_segment (file, file_page, (void *) mem_page,
                                  read_bytes, zero_bytes, writable))
                 goto done;
-            }
+              }
           else
             goto done;
           break;
@@ -380,7 +386,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
   token = strtok_r(file_name, " ", &save_ptr);
   int len = strlen(token);
   int max = 15;
-  int cpy_amt;
   if(max >= len)
   {
     memcpy(thread_current()->name, token, len+1);
@@ -409,8 +414,11 @@ load (const char *file_name, void (**eip) (void), void **esp)
     token = strtok_r(NULL, " ", &save_ptr);
   }
 
-  if (!setup_stack (esp, arglist, count))
+  if (!vm_setup_stack (esp, arglist, count))
+  {
+    PANIC("vm_setup_stack failed");
     goto done;
+  }
 
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
@@ -544,11 +552,14 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   return true;
 }
 
+
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
 setup_stack (void **esp, char **arglist, int argc) 
 {
+
+  PANIC("looks like error was in setup stack?");
   uint8_t *kpage;
   struct frame *f;
   bool success = false;
@@ -609,6 +620,123 @@ setup_stack (void **esp, char **arglist, int argc)
     }
   }
   return success;
+}
+
+
+/* function that tries to do the vm version of load segment
+  it only actually sets up the page struct in the supplementary
+  page table and lets page_in populate the page from the page_fault
+  handler if necessary
+
+  Note, some of the naming is vestigial from the non-vm load segment code 
+  */
+static bool
+vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
+              uint32_t read_bytes, uint32_t zero_bytes, bool writable) 
+{
+  ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
+  ASSERT (pg_ofs (upage) == 0);
+  ASSERT (ofs % PGSIZE == 0);
+
+
+
+  off_t offset_tracker = ofs;
+  while (read_bytes > 0 || zero_bytes > 0) 
+    {
+      /* Calculate how to fill this page.
+         We will read PAGE_READ_BYTES bytes from FILE
+         and zero the final PAGE_ZERO_BYTES bytes. */
+      size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
+      size_t page_zero_bytes = PGSIZE - page_read_bytes;
+
+      /* add a page table entry to the supplemental page table for upage 
+         data will be loaded lazily by the page fault handler calling
+         page_in */
+      struct page *p = page_allocate (upage, true);
+
+      p->file = file;
+      p->file_offset = offset_tracker;
+      p->file_bytes = page_read_bytes;
+
+      /* Advance. */
+      offset_tracker += PGSIZE;
+      read_bytes -= page_read_bytes;
+      zero_bytes -= page_zero_bytes;
+      upage += PGSIZE;
+    }
+
+  // PANIC("vm_load_segment: done");
+  return true;
+}
+
+
+/* Create a minimal stack by mapping a zeroed page at the top of
+   user virtual memory. */
+static bool
+vm_setup_stack (void **esp, char **arglist, int argc) 
+{
+
+  //PANIC("looks like error was in setup stack?");
+  uint8_t *kpage;
+  struct page *p;
+
+  if ((p = page_allocate (((uint8_t *) PHYS_BASE) - PGSIZE, false)) != NULL ) 
+  {
+
+      
+      *esp = PHYS_BASE - 1;
+      int length=0;
+      int i;
+
+      for(i = 0; i < argc; i++)
+      {
+        int str_length = strlen(arglist[i]) + 1;
+        *esp = *esp - str_length;
+
+        struct page *p2 = page_for_addr (*esp);
+        if(p2 == NULL)
+        {
+          PANIC("vm_setup_stack: can't seem to find the page we want...");
+        }
+
+        PANIC("vm_setup_stack: WE SEE THIS PANIC");
+        memcpy(*esp, arglist[i], str_length);
+        PANIC("vm_setup_stack: WE ARE NOT SEEING THIS PANIC, INSTEAD WE DON'T THINK THAT THE SPT HAS AN ENTRY FOR *esp");
+        arglist[i] = *esp;
+        length = length + str_length;
+      }
+      while(length % 4 !=0)
+      {
+        *esp= *esp-1;
+        length++;
+      }
+      int *stack_ptr = (int *)*esp;
+      
+      stack_ptr--;
+      *stack_ptr=0;
+
+      char **arg_ptr = (char **)(stack_ptr);
+
+      for(i=argc - 1; i>= 0; i--)
+      {
+        arg_ptr--;
+        *arg_ptr = arglist[i];
+      }
+
+      arg_ptr--;
+      *arg_ptr=arg_ptr+1;
+      
+      stack_ptr = (int *)arg_ptr;
+      stack_ptr--;
+      *stack_ptr = argc;
+      
+      stack_ptr--;
+      *stack_ptr = 0;
+      
+      *esp = stack_ptr;
+      return true;
+  }
+  return false;
 }
 
 /* Adds a mapping from user virtual address UPAGE to kernel

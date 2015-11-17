@@ -40,6 +40,7 @@ hash_hash_func page_hash;
 hash_less_func page_less;
 
 bool page_init (struct hash *h);
+struct page *page_for_addr (const void *address);
 void page_exit (void);
 bool page_in (void *fault_addr);
 bool page_out (struct page *p);
