@@ -37,11 +37,14 @@ struct
 page *page_for_addr (const void *address) 
 {
   struct thread *t = thread_current ();
+
   struct page p;
   struct hash_elem *e;
 
   p.addr = pg_round_down (address);
+  lock_acquire(&t->supp_pt_lock);
   e = hash_find (&t->supp_pt, &p.hash_elem);
+  lock_release(&t->supp_pt_lock);
   return e != NULL ? hash_entry (e, struct page, hash_elem) : NULL;
 }
 
@@ -63,20 +66,25 @@ page_exit (void)
 bool 
 page_in (void *fault_addr) 
 {
-  struct page *p = page_for_addr(fault_addr);
+  struct page *p = page_for_addr (fault_addr);
 
   if(p == NULL)
     PANIC("page_in: address %p not in SPT", fault_addr);
 
+
+  /* try_frame_alloc_and_lock will only return NULL
+  if EVERY frame is being used AND the swap space is full
+  AND none of the frames are read-only, since those can be read in
+  from the file again */
   struct frame *f = try_frame_alloc_and_lock (p);
 
-
-  // should only hold a lock if f != NULL
   if(f != NULL)
   {
     
     off_t read;
 
+    /* TO DO: NEED THE CASE WHERE p IS MMAP'd (I think)
+       AND THE CASE WHERE p IS IN SWAP SPACE */
     if(p->file != NULL)
     {
       //struct file *rfile = file_reopen(p->file);
@@ -100,28 +108,17 @@ page_in (void *fault_addr)
       memset (f->base, 0, PGSIZE);
     }
 
-    struct thread *t;
-    if((t = thread_current ()) != NULL)
+    //printf("Permissions are: %d\n", p->read_only);
+    if(pagedir_set_page (p->t->pagedir, p->addr, f->base, !p->read_only))
     {
-      //printf("Permissions are: %d\n", p->read_only);
-      if(pagedir_set_page (t->pagedir, p->addr, f->base, !p->read_only))
-      {
-        frame_unlock(f);
-        return true;
-      }
-      else
-      {
-        frame_unlock(f);
-        frame_free(f);
-        PANIC("page_in: failed to set page table entry");
-        return false;
-      }
+      frame_unlock(f);
+      return true;
     }
     else
     {
       frame_unlock(f);
       frame_free(f);
-      PANIC("page_in: thread_current returned NULL");
+      PANIC("page_in: failed to set page table entry");
       return false;
     }
   }
@@ -161,13 +158,13 @@ page_allocate (void *vaddr, bool read_only)
 
   p->frame = NULL;
 
-  // note hash_insert returns null on success
-  if(!hash_insert (&t->supp_pt, &p->hash_elem))
-  {
+  lock_acquire(&t->supp_pt_lock);
+  void *success = hash_insert (&t->supp_pt, &p->hash_elem);
+  lock_release(&t->supp_pt_lock);
 
-    struct page *p2 = page_for_addr(p->addr);
-    if(p2 == NULL)
-      PANIC("page_allocate: something funny is happening with hash_insert...");
+  // note hash_insert returns null on success
+  if(!success)
+  {
     return p;
   }
   else 
@@ -186,6 +183,8 @@ page_deallocate (void *vaddr)
     frame_free(p->frame);
     free(p);
   }
+
+  /* TO DO: remove the page from the hash table */
 }
 
 /* Returns a hash value for page p. 

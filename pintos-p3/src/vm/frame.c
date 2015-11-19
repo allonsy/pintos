@@ -102,6 +102,11 @@ try_frame_alloc_and_lock (struct page *page)
 
   lock_release(&scan_lock);
 
+
+  /* TO DO: Find a frame to evict here 
+    then call swap_out (f->page) followed by frame->free 
+    then return f */
+
   PANIC("no more frames :(");
 
   return NULL;
@@ -119,6 +124,7 @@ frame_lock (struct frame *f)
 void 
 frame_free (struct frame *f)
 {
+  lock_acquire(&scan_lock);
   lock_acquire(&f->lock);
   if(f != NULL)
   {
@@ -127,6 +133,7 @@ frame_free (struct frame *f)
     f->page = NULL;
   }
   lock_release(&f->lock);
+  lock_acquire(&scan_lock);
 }
 
 void 

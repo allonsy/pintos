@@ -113,6 +113,7 @@ struct thread
     struct thread *parent;
 
     struct hash supp_pt; /* holds the supplementary page table */
+    struct lock supp_pt_lock;
 
     /*End Added by Student */
 
