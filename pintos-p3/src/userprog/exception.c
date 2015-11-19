@@ -137,7 +137,7 @@ kill (struct intr_frame *f)
       printf ("Interrupt %#04x (%s) in unknown segment %04x\n",
              f->vec_no, intr_name (f->vec_no), f->cs);
       printf("%s: exit(%d)\n", thread_current()->name, -1);
-      thread_exit ();
+      except_exit ();
     }
 }
 
@@ -176,7 +176,11 @@ page_fault (struct intr_frame *f)
 
   /* Count page faults. */
   page_fault_cnt++;
-  //printf("Fault addr: %p, pagefault count: %d \n", fault_addr, page_fault_cnt);
+  if(fault_addr == 0)
+  {
+    except_exit();
+    return;
+  }
   /* Determine cause. */
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
@@ -184,7 +188,6 @@ page_fault (struct intr_frame *f)
 
   if(not_present)
   {
-
     struct page *p2 = page_for_addr (fault_addr);
     if(p2 == NULL)
     {
@@ -193,8 +196,8 @@ page_fault (struct intr_frame *f)
 
     if(!page_in(fault_addr))
     {
-      PANIC("page_fault: page_in error");
-      thread_exit ();
+      //PANIC("page_fault: page_in error");
+      except_exit ();
     }
     return;
   }
@@ -202,8 +205,8 @@ page_fault (struct intr_frame *f)
   {
     if(user)
     {
-      PANIC("page_fault: user tried to write to read only memory");
-      thread_exit();
+      //PANIC("page_fault: user tried to write to read only memory");
+      except_exit();
     }
     else
     {

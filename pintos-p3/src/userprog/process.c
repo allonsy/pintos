@@ -140,7 +140,6 @@ process_exit (void)
     free(fds->fptr);
     free(fds);
   }
-
   lock_acquire(&cur->child_list_lock);
   while(!list_empty(&cur->children))
   {
@@ -160,9 +159,6 @@ process_exit (void)
     free(chld);
   }
   lock_release(&cur->child_list_lock);
-
-
-
 
   uint32_t *pd;
 
