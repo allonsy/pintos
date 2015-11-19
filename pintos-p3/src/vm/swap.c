@@ -1,8 +1,8 @@
 #include "swap.h"
 #include "page.h"
 #include "threads/vaddr.h"
-#include "block.h"
-
+#include "devices/block.h"
+#include "lib/kernel/bitmap.h"
 
 /*
 
@@ -90,6 +90,8 @@ swap_in (struct page *p, struct frame *f)
   idx_first_free = bit_idx < idx_first_free ? bit_idx : idx_first_free;
   lock_release(&swap_lock);
 
+  p->frame = f;
+
   frame_unlock(f);
 	// vestigial
   return false;
@@ -100,10 +102,11 @@ swap_out (struct page *p)
 {
 
   size_t bit_idx;
+  int i;
 
   /* this lock on the outside since it has more contexts
     in which it can be locked */
-  frame_lock(&p->frame);
+  frame_lock(p->frame);
   lock_acquire(&swap_lock);
 
   // make sure idx_first_free is in fact free
@@ -133,9 +136,9 @@ swap_out (struct page *p)
 
   p->sector = start;
 
-  frame_unlock(&p->frame);
+  frame_unlock(p->frame);
 
-  frame_free(&p->frame);
+  frame_free(p->frame);
   //vestigial
   return false;
 }
