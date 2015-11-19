@@ -170,14 +170,13 @@ page_fault (struct intr_frame *f)
   asm ("movl %%cr2, %0" : "=r" (fault_addr));
 
 
-
   /* Turn interrupts back on (they were only off so that we could
      be assured of reading CR2 before it changed). */
   intr_enable ();
 
   /* Count page faults. */
   page_fault_cnt++;
-
+  //printf("Fault addr: %p, pagefault count: %d \n", fault_addr, page_fault_cnt);
   /* Determine cause. */
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;

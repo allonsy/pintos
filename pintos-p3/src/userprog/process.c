@@ -271,7 +271,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           bool writable);
 static bool vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
-                          bool writable);
+                          bool writable, char *filename);
 
 
 
@@ -371,7 +371,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
                   zero_bytes = ROUND_UP (page_offset + phdr.p_memsz, PGSIZE);
                 }
               if (!vm_load_segment (file, file_page, (void *) mem_page,
-                                 read_bytes, zero_bytes, writable))
+                                 read_bytes, zero_bytes, writable, file_exec_name))
                 goto done;
               }
           else
@@ -501,7 +501,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
-
+  
   file_seek (file, ofs);
   while (read_bytes > 0 || zero_bytes > 0) 
     {
@@ -636,16 +636,15 @@ setup_stack (void **esp, char **arglist, int argc)
   */
 static bool
 vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
-              uint32_t read_bytes, uint32_t zero_bytes, bool writable) 
+              uint32_t read_bytes, uint32_t zero_bytes, bool writable, char *filename) 
 {
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
+  // off_t len = file_length(file);
 
-  off_t len = file_length(file);
-
-  read_bytes = read_bytes > (len - ofs) ? (len - ofs) : read_bytes;
-
+  // read_bytes = read_bytes > (len - ofs) ? (len - ofs) : read_bytes;
+  //printf("VMloadSegRead bytes is : %ld, fileName: %s\n", read_bytes, filename);
   off_t offset_tracker = ofs;
   while (read_bytes > 0 || zero_bytes > 0) 
     {
@@ -658,11 +657,19 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* add a page table entry to the supplemental page table for upage 
          data will be loaded lazily by the page fault handler calling
          page_in */
-      struct page *p = page_allocate (upage, true);
-
-      p->file = file;
-      p->file_offset = offset_tracker;
-      p->file_bytes = page_read_bytes;
+      struct page *p = page_allocate (upage, !writable);
+      if(p == NULL)
+      {
+        return false;
+      }
+      if(page_read_bytes > 0)
+      {
+        p->file = file;
+        p->filename= malloc(strlen(filename)+1);
+        strlcpy(p->filename, filename, strlen(filename)+1);
+        p->file_offset = offset_tracker;
+        p->file_bytes = page_read_bytes;
+      }
 
       /* Advance. */
       offset_tracker += page_read_bytes;

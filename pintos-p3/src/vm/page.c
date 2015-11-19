@@ -9,6 +9,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "filesys/file.h"
+#include "filesys/filesys.h"
 #include "userprog/pagedir.h"
 #include "lib/string.h"
 
@@ -78,10 +79,12 @@ page_in (void *fault_addr)
 
     if(p->file != NULL)
     {
-
-      struct file *rfile = file_reopen(p->file);
+      //struct file *rfile = file_reopen(p->file);
+      //printf("filename:%s\n", p->filename);
+      struct file*rfile = filesys_open(p->filename);
+      //printf("INITIAL Length: %ld\n", file_length(rfile));
+      //printf("pointer to file: %p, base: %d, file_bytes: %d, file_offset: %d\n", rfile, f->base, p->file_bytes, p->file_offset);
       read = file_read_at (rfile, f->base, p->file_bytes, p->file_offset);
-
       if(read != p->file_bytes)
       {
         frame_unlock(f);
@@ -100,6 +103,7 @@ page_in (void *fault_addr)
     struct thread *t;
     if((t = thread_current ()) != NULL)
     {
+      //printf("Permissions are: %d\n", p->read_only);
       if(pagedir_set_page (t->pagedir, p->addr, f->base, !p->read_only))
       {
         frame_unlock(f);
