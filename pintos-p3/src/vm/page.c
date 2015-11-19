@@ -154,7 +154,7 @@ page_allocate (void *vaddr, bool read_only)
 
   p->addr = pg_round_down (vaddr);
   p->read_only = read_only;
-  p->thread = t;
+  p->t = t;
 
   p->frame = NULL;
 

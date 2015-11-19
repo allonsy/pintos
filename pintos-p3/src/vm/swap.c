@@ -1,4 +1,9 @@
-*
+#include "swap.h"
+#include "page.h"
+#include "threads/vaddr.h"
+
+
+/*
 
 Managing the swap table
 
@@ -53,7 +58,7 @@ swap_init (void)
 /* assumes that the page is held in a valid block sector */
 
 bool
-swap_in (struct page *p)
+swap_in (struct page *p, struct frame *f)
 {
   // might want to use these functions:
   // - lock_held_by_current_thread()
