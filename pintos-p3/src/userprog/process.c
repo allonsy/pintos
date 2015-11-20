@@ -639,6 +639,10 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (ofs % PGSIZE == 0);
  
   off_t offset_tracker = ofs;
+  struct file *rfile = file_reopen(file);
+
+  ASSERT(rfile != NULL);
+
   while (read_bytes > 0 || zero_bytes > 0) 
     {
       /* Calculate how to fill this page.
@@ -657,12 +661,12 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
       }
       if(page_read_bytes > 0)
       {
-        p->file = file;
+        p->file = rfile;
         p->filename= malloc(strlen(filename)+1);
         strlcpy(p->filename, filename, strlen(filename)+1);
         p->file_offset = offset_tracker;
         p->file_bytes = page_read_bytes;
-        p->private = false;
+        p->private = true; /* SINCE STUFF LOADED HERE IS NOT MMAP'D? */
       }
 
       /* Advance. */

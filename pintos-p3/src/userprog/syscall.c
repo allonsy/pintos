@@ -190,7 +190,7 @@ syscall_handler (struct intr_frame *f)
       sys_exit((int) args[0]);
       break;
     case SYS_MUNMAP:
-      sys_munmap((int) args[0]);
+      f->eax = sys_munmap((int) args[0]);
       break;
 
     /* 2-arg sys calls */  
@@ -201,7 +201,7 @@ syscall_handler (struct intr_frame *f)
       sys_seek((int) args[0], (unsigned) args[1]);
       break;
     case SYS_MMAP:
-      sys_mmap((int) args[0], (void*) args[1]);
+      f->eax = sys_mmap((int) args[0], (void*) args[1]);
       break;
 
     /* 3-arg sys calls */  
@@ -239,11 +239,7 @@ static struct mapping *lookup_mapping (int handle)
 }
 
 
-/* Remove mapping M from the virtual address space,                              
-   writing back any pages that have changed. */
-static void unmap (struct mapping *m) {
-  // might use: page_deallocate()
-}
+
 
 static int
 sys_mmap (int handle, void *addr)
@@ -252,6 +248,8 @@ sys_mmap (int handle, void *addr)
   return -1;
 }
 
+/* Remove mapping M from the virtual address space,                              
+   writing back any pages that have changed. */
 static int
 sys_munmap (int mapping)
 {
