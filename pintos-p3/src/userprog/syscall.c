@@ -49,7 +49,7 @@ is_valid_uptr(void *ptr)
   {
     if(is_user_vaddr(ptr))
     {
-      void *page_number = pagedir_get_page(t->pagedir, ptr);
+      void *page_number = page_for_addr(ptr);
       if(page_number !=NULL)
       {
         return 1;
@@ -400,10 +400,8 @@ sys_read (int fd, void *buffer, unsigned length)
 {
   is_valid_uptr(buffer);
   is_valid_uptr(buffer+length-1);
-
   char *kbuf = malloc(length);
   int readbytes = 0;
-
   if(fd == STDIN_FILENO)
   {
     while(readbytes < length)

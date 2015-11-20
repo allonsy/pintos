@@ -637,10 +637,7 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
-  // off_t len = file_length(file);
-
-  // read_bytes = read_bytes > (len - ofs) ? (len - ofs) : read_bytes;
-  //printf("VMloadSegRead bytes is : %ld, fileName: %s\n", read_bytes, filename);
+ 
   off_t offset_tracker = ofs;
   while (read_bytes > 0 || zero_bytes > 0) 
     {
