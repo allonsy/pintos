@@ -253,7 +253,6 @@ sys_mmap (int handle, void *addr)
 static int
 sys_munmap (int mapping)
 {
-  unmap (lookup_mapping (mapping));
   return 0;
 }
 

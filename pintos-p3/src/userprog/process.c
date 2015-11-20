@@ -259,15 +259,11 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp, char **arglist, int argc);
 static bool vm_setup_stack (void **esp, char **arglist, int argc);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
-static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
-                          uint32_t read_bytes, uint32_t zero_bytes,
-                          bool writable);
 static bool vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
-                          bool writable, char *filename);
+                          bool writable);
 
 
 
@@ -367,7 +363,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
                   zero_bytes = ROUND_UP (page_offset + phdr.p_memsz, PGSIZE);
                 }
               if (!vm_load_segment (file, file_page, (void *) mem_page,
-                                 read_bytes, zero_bytes, writable, file_exec_name))
+                                 read_bytes, zero_bytes, writable))
                 goto done;
               }
           else
@@ -480,148 +476,6 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
   return true;
 }
 
-/* Loads a segment starting at offset OFS in FILE at address
-   UPAGE.  In total, READ_BYTES + ZERO_BYTES bytes of virtual
-   memory are initialized, as follows:
-        - READ_BYTES bytes at UPAGE must be read from FILE
-          starting at offset OFS.
-        - ZERO_BYTES bytes at UPAGE + READ_BYTES must be zeroed.
-   The pages initialized by this function must be writable by the
-   user process if WRITABLE is true, read-only otherwise.
-   Return true if successful, false if a memory allocation error
-   or disk read error occurs. */
-static bool
-load_segment (struct file *file, off_t ofs, uint8_t *upage,
-              uint32_t read_bytes, uint32_t zero_bytes, bool writable) 
-{
-  ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
-  ASSERT (pg_ofs (upage) == 0);
-  ASSERT (ofs % PGSIZE == 0);
-  
-  file_seek (file, ofs);
-  while (read_bytes > 0 || zero_bytes > 0) 
-    {
-      /* Calculate how to fill this page.
-         We will read PAGE_READ_BYTES bytes from FILE
-         and zero the final PAGE_ZERO_BYTES bytes. */
-      size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
-      size_t page_zero_bytes = PGSIZE - page_read_bytes;
-      uint8_t *kpage;
-      struct frame *f;
-
-      /* Get a page of memory. */
-      //uint8_t *kpage = palloc_get_page(PAL_USER);
-      
-
-      // use try_frame in palloc mode
-      if ( (f = try_frame_alloc_and_lock(NULL)) != NULL )
-      {
-        kpage = f->base;
-      }
-      else
-      {
-        return false;
-      }
-
-      /* Load this page. */
-      if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
-        {
-          //palloc_free_page (kpage);
-          frame_unlock(f);
-          frame_free(f);
-          return false; 
-        }
-      memset (kpage + page_read_bytes, 0, page_zero_bytes);
-
-      /* Add the page to the process's address space. */
-      if (!install_page (upage, kpage, writable)) 
-        {
-          //palloc_free_page (kpage);
-          frame_unlock(f);
-          frame_free(f);
-          return false; 
-        }
-
-      frame_unlock(f);
-
-      /* Advance. */
-      read_bytes -= page_read_bytes;
-      zero_bytes -= page_zero_bytes;
-      upage += PGSIZE;
-    }
-  return true;
-}
-
-
-/* Create a minimal stack by mapping a zeroed page at the top of
-   user virtual memory. */
-static bool
-setup_stack (void **esp, char **arglist, int argc) 
-{
-
-  PANIC("looks like error was in setup stack?");
-  uint8_t *kpage;
-  struct frame *f;
-  bool success = false;
-  //kpage = palloc_get_page (PAL_USER | PAL_ZERO);
-
-  if ( (f = try_frame_alloc_and_lock(NULL)) != NULL ) 
-  {
-    kpage = f->base;
-    success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-    if (success)
-    {
-      *esp = PHYS_BASE;
-      int length=0;
-      int i;
-      for(i=0; i< argc; i++)
-      {
-        int str_length = strlen(arglist[i]) + 1;
-        *esp = *esp - str_length;
-        memcpy(*esp, arglist[i], str_length);
-        arglist[i] = *esp;
-        length = length + str_length;
-      }
-      while(length % 4 !=0)
-      {
-        *esp= *esp-1;
-        length++;
-      }
-      int *stack_ptr = (int *)*esp;
-      
-      stack_ptr--;
-      *stack_ptr=0;
-
-      char **arg_ptr = (char **)(stack_ptr);
-
-      for(i=argc - 1; i>= 0; i--)
-      {
-        arg_ptr--;
-        *arg_ptr = arglist[i];
-      }
-
-      arg_ptr--;
-      *arg_ptr=arg_ptr+1;
-      
-      stack_ptr = (int *)arg_ptr;
-      stack_ptr--;
-      *stack_ptr = argc;
-      
-      stack_ptr--;
-      *stack_ptr = 0;
-      
-      *esp = stack_ptr;
-    }
-    else
-    {
-     // palloc_free_page (kpage);
-      frame_unlock(f);
-      frame_free(f);
-    }
-  }
-  return success;
-}
-
 
 /* function that tries to do the vm version of load segment
   it only actually sets up the page struct in the supplementary
@@ -632,12 +486,12 @@ setup_stack (void **esp, char **arglist, int argc)
   */
 static bool
 vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
-              uint32_t read_bytes, uint32_t zero_bytes, bool writable, char *filename) 
+              uint32_t read_bytes, uint32_t zero_bytes, bool writable) 
 {
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
- 
+
   off_t offset_tracker = ofs;
   struct file *rfile = file_reopen(file);
 
@@ -662,11 +516,9 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
       if(page_read_bytes > 0)
       {
         p->file = rfile;
-        p->filename= malloc(strlen(filename)+1);
-        strlcpy(p->filename, filename, strlen(filename)+1);
         p->file_offset = offset_tracker;
         p->file_bytes = page_read_bytes;
-        p->private = true; /* SINCE STUFF LOADED HERE IS NOT MMAP'D? */
+        p->private = true; /* SINCE STUFF LOADED HERE IS NOT MMAP'D? PROBABLY UP FOR DEBATE */
       }
 
       /* Advance. */
@@ -676,7 +528,6 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
       upage += PGSIZE;
     }
 
-  // PANIC("vm_load_segment: done");
   return true;
 }
 
@@ -706,28 +557,16 @@ vm_setup_stack (void **esp, char **arglist, int argc)
         int str_length = strlen(arglist[i]) + 1;
         *esp = *esp - str_length;
 
-        // struct page *p2 = page_for_addr (*esp);
-        // if(p2 == NULL)
-        // {
-        //   PANIC("vm_setup_stack: can't seem to find the page we want...");
-        // }
-
-        //PANIC("vm_setup_stack: WE SEE THIS PANIC");
         memcpy(*esp, arglist[i], str_length);
-        //PANIC("vm_setup_stack: WE ARE NOT SEEING THIS PANIC, INSTEAD WE DON'T THINK THAT THE SPT HAS AN ENTRY FOR *esp");
         arglist[i] = *esp;
         length = length + str_length;
       }
-
-      //PANIC("vm_setup_stack: made it through the for loop");
 
       while(length % 4 !=0)
       {
         *esp= *esp-1;
         length++;
       }
-
-      //PANIC("vm_setup_stack: made it through the while loop");
 
       int *stack_ptr = (int *)*esp;
       
@@ -742,8 +581,6 @@ vm_setup_stack (void **esp, char **arglist, int argc)
         *arg_ptr = arglist[i];
       }
 
-      //PANIC("vm_setup_stack: made it through the second for loop");
-
       arg_ptr--;
       *arg_ptr=arg_ptr+1;
       
@@ -756,7 +593,6 @@ vm_setup_stack (void **esp, char **arglist, int argc)
       
       *esp = stack_ptr;
 
-      //PANIC("vm_setup_stack: about to return true");
       return true;
   }
   return false;

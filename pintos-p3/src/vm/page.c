@@ -65,7 +65,6 @@ page_exit (void)
 bool 
 page_in (void *fault_addr) 
 {
-  struct file *rfile;
   struct page *p = page_for_addr (fault_addr);
 
   if(p == NULL)
@@ -79,37 +78,18 @@ page_in (void *fault_addr)
   struct frame *f = try_frame_alloc_and_lock (p);
   if(f != NULL)
   {
-    
     off_t read;
 
     /* TO DO: NEED THE CASE WHERE p IS MMAP'd (I think)
        AND THE CASE WHERE p IS IN SWAP SPACE */
     if(p->file != NULL)
     {
-      //struct file *rfile = file_reopen(p->file);
-      //printf("filename:%s\n", p->filename);
-      if(p->filename != NULL) 
-      {
-        rfile = filesys_open(p->filename);
-      }  
-      else
-      {
-        /* this is ostensibly the mmap case */
-        rfile = p->file;
-      }
-      //printf("INITIAL Length: %ld\n", file_length(rfile));
-      //printf("pointer to file: %p, base: %d, file_bytes: %d, file_offset: %d\n", rfile, f->base, p->file_bytes, p->file_offset);
-      read = file_read_at (rfile, f->base, p->file_bytes, p->file_offset);
+      read = file_read_at (p->file, f->base, p->file_bytes, p->file_offset);
       if(read != p->file_bytes)
       {
         frame_unlock(f);
         frame_free(f);
 
-        if(p->filename != NULL) 
-        {
-          /* don't do this if mmapd */
-          free(rfile);
-        }
         PANIC("page_in: unable to read correct number of bytes from file %p, read %d, expected %d", p->file, read, p->file_bytes);
         return false;
       }
@@ -121,13 +101,6 @@ page_in (void *fault_addr)
       memset (f->base, 0, PGSIZE);
     }
 
-    if(p->filename != NULL) 
-    {
-      /* don't do this if mmapd */
-      free(rfile);
-    }
-    
-    //printf("Permissions are: %d\n", p->read_only);
     if(pagedir_set_page (p->thread->pagedir, p->addr, f->base, !p->read_only))
     {
       frame_unlock(f);
@@ -201,7 +174,7 @@ page_deallocate (void *vaddr)
   {
     hash_delete (&p->thread->supp_pt, &p->hash_elem);
     frame_free(p->frame);
-    free(p->filename);
+    //free(p->filename);
     free(p);
   }
 }
