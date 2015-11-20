@@ -77,7 +77,6 @@ page_in (void *fault_addr)
   AND none of the frames are read-only, since those can be read in
   from the file again */
   struct frame *f = try_frame_alloc_and_lock (p);
-
   if(f != NULL)
   {
     
@@ -107,7 +106,6 @@ page_in (void *fault_addr)
     {
       memset (f->base, 0, PGSIZE);
     }
-
     //printf("Permissions are: %d\n", p->read_only);
     if(pagedir_set_page (p->thread->pagedir, p->addr, f->base, !p->read_only))
     {

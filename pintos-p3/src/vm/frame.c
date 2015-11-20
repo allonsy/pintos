@@ -84,7 +84,7 @@ try_frame_alloc_and_lock (struct page *page)
 
   /* p should not be NULL since we held the scan lock above
     and no page had NULL */
-  if(pagedir_is_dirty(p->thread->pagedir, p->addr))
+  if(pagedir_is_dirty(p->thread->pagedir, p->addr) && !p->read_only)
   {
     swap_out(p);
     ASSERT(p->frame ==NULL);

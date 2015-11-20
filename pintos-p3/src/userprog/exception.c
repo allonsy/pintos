@@ -203,7 +203,9 @@ page_fault (struct intr_frame *f)
       if(fault_addr >= t->stack-32)
       {
         uint32_t *newPageAddr = pg_round_down(fault_addr);
-        struct page *p = page_allocate(newPageAddr, 0);
+        struct page *p = page_allocate(fault_addr, 0);
+        p->file = NULL;
+        p->read_only = 0;
         if(p != NULL)
         {
           t->num_extensions++;
