@@ -84,10 +84,10 @@ try_frame_alloc_and_lock (struct page *page)
 
   /* p should not be NULL since we held the scan lock above
     and no page had NULL */
-  if(/* DIRTY */ && false)
+  if(pagedir_is_dirty(p->thread->pagedir, p->addr))
   {
     swap_out(p);
-    ASSERT(p)
+    ASSERT(p->frame ==NULL);
   } 
   else if (p->read_only && false)
   {
@@ -145,14 +145,18 @@ struct frame *perform_LRU()
     struct page *p = frames[hand].page;
     if(p==NULL)
     {
-      hand = (hand++) % frame_cnt;
+      hand++;
+      if(hand >= frame_cnt)
+      {
+        hand = 0;
+      }
       continue;
     }
 
     uint32_t *cur_pagedir = p->thread->pagedir;
-    if(!pagedir_is_accessed(cur_pagedir, p))
+    if(!pagedir_is_accessed(cur_pagedir, p->addr))
     {
-      if(!pagedir_is_dirty(cur_pagedir, p))
+      if(!pagedir_is_dirty(cur_pagedir, p->addr))
       {
         ret = &frames[hand];
       }
@@ -166,10 +170,14 @@ struct frame *perform_LRU()
     }
     else
     {
-      pagedir_set_accessed(cur_pagedir, p, 0);
+      pagedir_set_accessed(cur_pagedir, p->addr, 0);
       didChange = 1;
     }
-    hand = (hand++) % frame_cnt;
+    hand++;
+    if(hand >= frame_cnt)
+    {
+      hand = 0;
+    }
     if(hand == top)
     {
       if(didChange)
@@ -182,7 +190,7 @@ struct frame *perform_LRU()
       }
     }
   }
-  if(ret != NULL && !lock_held_by_current_thread())
+  if(ret != NULL && !lock_held_by_current_thread(&ret->lock))
   {
     frame_lock(ret);
   }
