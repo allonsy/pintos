@@ -86,14 +86,17 @@ try_frame_alloc_and_lock (struct page *page)
     and no page had NULL */
   if(pagedir_is_dirty(p->thread->pagedir, p->addr) && !p->read_only)
   {
-    swap_out(p);
+    if(!swap_out(p))
+    {
+      PANIC("try_frame_alloc_and_lock: SWAP SPACE FULL");
+    }
     ASSERT(p->frame ==NULL);
     f->page = page;
     page->frame = f;
     lock_release(&scan_lock);
     return f;
   } 
-  else if (p->read_only)
+  else if (p->read_only && p->file != NULL)
   {
     p->frame == NULL; /* safe to do since scan lock and frame lock are held */
     pagedir_clear_page (p->thread->pagedir, p->addr);
@@ -103,11 +106,11 @@ try_frame_alloc_and_lock (struct page *page)
     return f;
   }
 
-
+  lock_release(&f->lock);
 
   lock_release(&scan_lock);
 
-  PANIC("no more frames :(");
+  PANIC("try_frame_alloc_and_lock: WE NEED ADDITIONAL LOGIC AFTER LRU");
 
   return NULL;
 }
