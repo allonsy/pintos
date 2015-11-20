@@ -88,11 +88,19 @@ try_frame_alloc_and_lock (struct page *page)
   {
     swap_out(p);
     ASSERT(p)
+    f->page = page;
+    page->frame = f;
+    lock_release(&scan_lock);
+    return f;
   } 
   else if (p->read_only && false)
   {
     p->frame == NULL; /* safe to do since scan lock and frame lock are held */
     pagedir_clear_page (p->thread->pagedir, p->addr);
+    f->page = page;
+    page->frame = f;
+    lock_release(&scan_lock);
+    return f;
   }
 
 
