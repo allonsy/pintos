@@ -194,13 +194,22 @@ page_fault (struct intr_frame *f)
     {
       
       struct thread *t = thread_current();
-      if(t->num_extensions > 20)
+      if(t->num_extensions > 2000)
       {
         except_exit();
       }
-      t->stack = f->esp;
 
-      if(fault_addr >= t->stack-32)
+      void *stack_ptr_swizzle;
+      if(is_kernel_vaddr(f->esp))
+      {
+        stack_ptr_swizzle = t->stack;
+      }
+      else
+      {
+        t->stack = f->esp;
+        stack_ptr_swizzle = t->stack;
+      }
+      if(fault_addr >= stack_ptr_swizzle-32)
       {
         uint32_t *newPageAddr = pg_round_down(fault_addr);
         struct page *p = page_allocate(fault_addr, 0);
@@ -213,10 +222,8 @@ page_fault (struct intr_frame *f)
           return;
         }
       }
-
       except_exit();
     }
-
     if(!page_in(fault_addr))
     {
       //PANIC("page_fault: page_in error");

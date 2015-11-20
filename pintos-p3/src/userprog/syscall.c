@@ -13,6 +13,7 @@
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 #include "threads/synch.h"
+#include "vm/page.h"
 
 static void syscall_handler (struct intr_frame *f);
 
@@ -59,6 +60,22 @@ is_valid_uptr(void *ptr)
       {
         return 1;
       }
+      else
+      {
+        if(ptr >= t->stack-32 && t->num_extensions <= 2000)
+        {
+          uint32_t *newPageAddr = pg_round_down(ptr);
+          struct page *p = page_allocate(ptr, 0);
+          p->file = NULL;
+          p->read_only = 0;
+          if(p != NULL)
+          {
+            t->num_extensions++;
+            page_in(ptr);
+            return 1;
+          }
+        }
+      }
     }
   }
   sys_exit (-1);
@@ -73,6 +90,7 @@ syscall_handler (struct intr_frame *f)
   {
     return;
   }
+  thread_current()->stack = f->esp;
   int args[3];
   uint32_t call_nr;
   int arg_cnt = 0;
@@ -481,7 +499,6 @@ sys_read (int fd, void *buffer, unsigned length)
         lock_acquire(&filesys_lock);
         readbytes = file_read(fds->fptr, kbuf, length);
         lock_release(&filesys_lock);
-
         memcpy(buffer, kbuf, readbytes);
         free(kbuf);
         return readbytes;
