@@ -46,28 +46,23 @@ try_frame_alloc_and_lock (struct page *page)
 {
   int i;
   struct frame *f;
-  bool success;
+  //bool success;
 
   lock_acquire(&scan_lock);
   
   for(i = 0; i < frame_cnt; i++)
   {
     f = &frames[i];
-    if(!lock_held_by_current_thread(&f->lock))
+    if(f->page == NULL)
     {  
-      success = lock_try_acquire(&f->lock);
-      if(success)
+      if(!lock_held_by_current_thread(&f->lock))
       {
-        if(f->page == NULL)
+        if(lock_try_acquire(&f->lock))
         {
           f->page = page;
           page->frame = f;
           lock_release(&scan_lock);
           return f;
-        }
-        else
-        {
-          lock_release(&f->lock);
         }
       }
     }
@@ -81,7 +76,7 @@ try_frame_alloc_and_lock (struct page *page)
 
   /* p should not be NULL since we held the scan lock above
     and no page had NULL */
-  if(pagedir_is_dirty(p->thread->pagedir, p->addr) && !p->read_only)
+  if(pagedir_is_dirty(p->thread->pagedir, p->addr))
   {
 
 
@@ -107,11 +102,23 @@ try_frame_alloc_and_lock (struct page *page)
       lock_release(&scan_lock);
       return f;
     }
-  } 
+  }
   else if (p->read_only && p->file != NULL)
   {
     p->frame == NULL; /* safe to do since scan lock and frame lock are held */
     pagedir_clear_page (p->thread->pagedir, p->addr);
+    f->page = page;
+    page->frame = f;
+    lock_release(&scan_lock);
+    return f;
+  }
+  else
+  {
+    if(!swap_out(p))
+    {
+      PANIC("try_frame_alloc_and_lock: SWAP SPACE FULL");
+    }
+    ASSERT(p->frame ==NULL);
     f->page = page;
     page->frame = f;
     lock_release(&scan_lock);

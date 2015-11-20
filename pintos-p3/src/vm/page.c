@@ -68,18 +68,21 @@ page_in (void *fault_addr)
   struct page *p = page_for_addr (fault_addr);
 
   if(p == NULL)
+  {
     PANIC("page_in: address %p not in SPT", fault_addr);
+  }
 
 
   /* try_frame_alloc_and_lock will only return NULL
   if EVERY frame is being used AND the swap space is full
   AND none of the frames are read-only, since those can be read in
   from the file again */
+  printf("paging in for fault addr:%p\n", fault_addr);
   struct frame *f = try_frame_alloc_and_lock (p);
+  printf("done with frame for: %p\n", fault_addr);
   if(f != NULL)
   {
     off_t read;
-
     /* TO DO: NEED THE CASE WHERE p IS MMAP'd (I think)
        AND THE CASE WHERE p IS IN SWAP SPACE */
     if(p->file != NULL)
@@ -93,7 +96,6 @@ page_in (void *fault_addr)
         PANIC("page_in: unable to read correct number of bytes from file %p, read %d, expected %d", p->file, read, p->file_bytes);
         return false;
       }
-
       memset (f->base + read, 0, PGSIZE - read);
     }
     else //page has no file, probably a stack page

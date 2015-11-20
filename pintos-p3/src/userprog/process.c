@@ -491,7 +491,7 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
-
+  printf("read bytes are: %ld\n", zero_bytes);
   off_t offset_tracker = ofs;
   struct file *rfile = file_reopen(file);
 
@@ -509,6 +509,8 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
          data will be loaded lazily by the page fault handler calling
          page_in */
       struct page *p = page_allocate (upage, !writable);
+      p->file = NULL;
+      //printf("allocating page for addr: %p\n", p->addr);
       if(p == NULL)
       {
         return false;

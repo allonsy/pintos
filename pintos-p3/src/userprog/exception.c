@@ -170,7 +170,6 @@ page_fault (struct intr_frame *f)
      (#PF)". */
   asm ("movl %%cr2, %0" : "=r" (fault_addr));
 
-
   /* Turn interrupts back on (they were only off so that we could
      be assured of reading CR2 before it changed). */
   intr_enable ();
@@ -189,16 +188,15 @@ page_fault (struct intr_frame *f)
 
   if(not_present)
   {
+    printf("not present? addr %p\n", fault_addr);
     struct page *p2 = page_for_addr (fault_addr);
     if(p2 == NULL)
     {
-      
       struct thread *t = thread_current();
       if(t->num_extensions > 2000)
       {
         except_exit();
       }
-
       void *stack_ptr_swizzle;
       if(is_kernel_vaddr(f->esp))
       {
