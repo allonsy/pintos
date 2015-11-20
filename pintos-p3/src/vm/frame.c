@@ -54,48 +54,22 @@ try_frame_alloc_and_lock (struct page *page)
 
   lock_acquire(&scan_lock);
   
-
-  if(page == NULL)
+  for(i = 0; i < frame_cnt; i++)
   {
-    for(i = 0; i < frame_cnt; i++)
+    struct frame *f = &frames[i];
+    bool success = lock_try_acquire(&f->lock);
+    if(success)
     {
-      struct frame *f = &frames[i];
-      bool success = lock_try_acquire(&f->lock);
-      if(success)
+      if(f->page == NULL)
       {
-        if(f->page == NULL)
-        {
-          //f->page = page;
-          f->page = (struct page *) 1;
-          lock_release(&scan_lock);
-          return f;
-        }
-        else
-        {
-          lock_release(&f->lock);
-        }
+        f->page = page;
+        page->frame = f;
+        lock_release(&scan_lock);
+        return f;
       }
-    }
-  }
-  else // if/else treats this function like poor man's palloc if page is null
-  {
-    for(i = 0; i < frame_cnt; i++)
-    {
-      struct frame *f = &frames[i];
-      bool success = lock_try_acquire(&f->lock);
-      if(success)
+      else
       {
-        if(f->page == NULL)
-        {
-          f->page = page;
-          page->frame = f;
-          lock_release(&scan_lock);
-          return f;
-        }
-        else
-        {
-          lock_release(&f->lock);
-        }
+        lock_release(&f->lock);
       }
     }
   }
@@ -133,7 +107,7 @@ frame_free (struct frame *f)
     f->page = NULL;
   }
   lock_release(&f->lock);
-  lock_acquire(&scan_lock);
+  lock_release(&scan_lock);
 }
 
 void 

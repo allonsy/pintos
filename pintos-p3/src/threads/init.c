@@ -131,9 +131,7 @@ main (void)
 #endif
 
   frame_init();
-  // PANIC("main: after frame init");
-
-  // swap_init();
+  swap_init();
 
   printf ("Boot complete.\n");
   
