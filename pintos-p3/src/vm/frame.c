@@ -78,8 +78,6 @@ try_frame_alloc_and_lock (struct page *page)
     and no page had NULL */
   if(pagedir_is_dirty(p->thread->pagedir, p->addr))
   {
-
-
     if(p->private)
     {
       if(!swap_out(p))

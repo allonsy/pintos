@@ -41,9 +41,21 @@ page *page_for_addr (const void *address)
   struct hash_elem *e;
 
   p.addr = pg_round_down (address);
-  lock_acquire(&t->supp_pt_lock);
+
+  bool lockheld = lock_held_by_current_thread(&t->supp_pt_lock);
+
+  if(!lockheld)
+  {
+    lock_acquire(&t->supp_pt_lock);
+  }
+
   e = hash_find (&t->supp_pt, &p.hash_elem);
-  lock_release(&t->supp_pt_lock);
+
+  if(!lockheld)
+  {
+    lock_release(&t->supp_pt_lock);
+  }
+
   return e != NULL ? hash_entry (e, struct page, hash_elem) : NULL;
 }
 
@@ -152,9 +164,20 @@ page_allocate (void *vaddr, bool read_only)
 
   p->frame = NULL;
 
-  lock_acquire(&t->supp_pt_lock);
+  bool lockheld = lock_held_by_current_thread(&t->supp_pt_lock);
+
+  if(!lockheld)
+  {
+    lock_acquire(&t->supp_pt_lock);
+  }
+
   void *success = hash_insert (&t->supp_pt, &p->hash_elem);
-  lock_release(&t->supp_pt_lock);
+
+  if(!lockheld)
+  {
+    lock_release(&t->supp_pt_lock);
+  }
+
 
   // note hash_insert returns null on success
   if(!success)
@@ -172,11 +195,25 @@ void
 page_deallocate (void *vaddr) 
 {
   struct page *p;
+  struct thread *t = thread_current ();
   if((p = page_for_addr (vaddr)) != NULL)
   {
+
+    bool lockheld = lock_held_by_current_thread(&t->supp_pt_lock);
+
+    if(!lockheld)
+    {
+      lock_acquire(&t->supp_pt_lock);
+    }
+
     hash_delete (&p->thread->supp_pt, &p->hash_elem);
+
+    if(!lockheld)
+    {
+      lock_release(&t->supp_pt_lock);
+    }
+    
     frame_free(p->frame);
-    //free(p->filename);
     free(p);
   }
 }
