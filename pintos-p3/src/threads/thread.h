@@ -114,7 +114,7 @@ struct thread
 
     struct hash supp_pt; /* holds the supplementary page table */
     struct lock supp_pt_lock;
-
+    int num_extensions; //counts the number of stack growths, caps at 8MB = 2000 frames
     /*End Added by Student */
 
     /* Owned by thread.c. */
