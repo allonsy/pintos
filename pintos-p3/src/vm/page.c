@@ -193,6 +193,7 @@ void
 page_deallocate (void *vaddr) 
 {
   struct page *p;
+  struct thread *t = thread_current ();
   if((p = page_for_addr (vaddr)) != NULL)
   {
 

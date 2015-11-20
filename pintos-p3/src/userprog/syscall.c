@@ -237,6 +237,7 @@ static struct mapping *lookup_mapping (int handle)
 {
   struct thread *t = thread_current ();
   struct mapping *m = NULL;
+  struct list_elem *e;
 
   lock_acquire(&t->map_lock);
 
@@ -260,7 +261,7 @@ static int
 sys_mmap (int handle, void *addr)
 {
   /* can't mmap stdin, or to non-page aligned memory, or if addr == 0 cuz PINTOS */
-  if(handle <= 2 || (addr % PGSIZE) != 0 || addr == NULL)
+  if(handle <= 2 || addr == NULL /* || addr isn't page aligned */)
   {
     return -1;
   }
