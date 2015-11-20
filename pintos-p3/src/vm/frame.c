@@ -5,6 +5,7 @@
 #include "threads/loader.h"
 #include "userprog/pagedir.h"
 #include "vm/page.h"
+#include "threads/vaddr.h"
 
 
 static struct frame *frames;
@@ -73,7 +74,6 @@ try_frame_alloc_and_lock (struct page *page)
   /* f is locked when this returns */
   f = perform_LRU();
   struct page *p = f->page;
-
   /* p should not be NULL since we held the scan lock above
     and no page had NULL */
   if(pagedir_is_dirty(p->thread->pagedir, p->addr))
@@ -128,7 +128,6 @@ try_frame_alloc_and_lock (struct page *page)
   lock_release(&scan_lock);
 
   PANIC("try_frame_alloc_and_lock: WE NEED ADDITIONAL LOGIC AFTER LRU");
-
   return NULL;
 }
 
@@ -170,8 +169,9 @@ struct frame *perform_LRU()
   int oneshot = 0;
   while(ret == NULL)
   {
+    //printf("loop\n");
     struct page *p = frames[hand].page;
-    if(p==NULL)
+    if(p==NULL || is_kernel_vaddr(p->addr))
     {
       hand++;
       if(hand >= frame_cnt)
@@ -182,19 +182,20 @@ struct frame *perform_LRU()
     }
 
     uint32_t *cur_pagedir = p->thread->pagedir;
+    //printf("acc: %ld dirty: %ld\n", pagedir_is_accessed(cur_pagedir, p->addr), pagedir_is_dirty(cur_pagedir, p->addr));
     if(!pagedir_is_accessed(cur_pagedir, p->addr))
     {
-      if(!pagedir_is_dirty(cur_pagedir, p->addr))
-      {
+      //if(!pagedir_is_dirty(cur_pagedir, p->addr))
+      //{
         ret = &frames[hand];
-      }
-      else
-      {
-        if(oneshot)
-        {
-          ret = &frames[hand];
-        }
-      }
+      //}
+      //else
+      //{
+      //  if(oneshot)
+      //  {
+      //    ret = &frames[hand];
+       // }
+     // }
     }
     else
     {

@@ -78,7 +78,6 @@ bool
 page_in (void *fault_addr) 
 {
   struct page *p = page_for_addr (fault_addr);
-
   if(p == NULL)
   {
     PANIC("page_in: address %p not in SPT", fault_addr);
@@ -89,15 +88,18 @@ page_in (void *fault_addr)
   if EVERY frame is being used AND the swap space is full
   AND none of the frames are read-only, since those can be read in
   from the file again */
-  printf("paging in for fault addr:%p\n", fault_addr);
   struct frame *f = try_frame_alloc_and_lock (p);
-  printf("done with frame for: %p\n", fault_addr);
+  
   if(f != NULL)
   {
     off_t read;
     /* TO DO: NEED THE CASE WHERE p IS MMAP'd (I think)
        AND THE CASE WHERE p IS IN SWAP SPACE */
-    if(p->file != NULL)
+    if(p->swap)
+    {
+      swap_in(p);
+    }
+    else if(p->file != NULL)
     {
       read = file_read_at (p->file, f->base, p->file_bytes, p->file_offset);
       if(read != p->file_bytes)
@@ -151,7 +153,8 @@ page_allocate (void *vaddr, bool read_only)
   struct page *p;  
   struct thread *t = thread_current ();
   p = malloc(sizeof *p);
-
+  p->swap = false;
+  p->private=true;
   if(p == NULL)
   {
     PANIC("no memory for struct page allocation");

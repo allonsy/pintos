@@ -188,7 +188,6 @@ page_fault (struct intr_frame *f)
 
   if(not_present)
   {
-    printf("not present? addr %p\n", fault_addr);
     struct page *p2 = page_for_addr (fault_addr);
     if(p2 == NULL)
     {

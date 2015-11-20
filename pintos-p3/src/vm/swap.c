@@ -49,7 +49,7 @@ swap_init (void)
   swap_device = block_get_role (BLOCK_SWAP);
   if (swap_device == NULL)
     {
-      printf ("no swap device--swap disabled\n");
+      PANIC ("no swap device--swap disabled\n");
       swap_bitmap = bitmap_create (0);
     }
   else
@@ -87,7 +87,7 @@ swap_in (struct page *p)
   idx_first_free = bit_idx < idx_first_free ? bit_idx : idx_first_free;
   lock_release(&swap_lock);
   p->sector = -1;
-
+  p->swap = false;
   /* NOTE, we do not need to set the pagedir entry here, as that is handled in page_in */
 
   return true;
@@ -161,6 +161,7 @@ swap_out (struct page *p)
   p->frame = NULL; /* safe since we are calling this with frame lock and scan lock held */
 
   pagedir_clear_page (p->thread->pagedir, p->addr);
+  p->swap = true;
 
   return true;
 }

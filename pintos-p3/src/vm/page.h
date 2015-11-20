@@ -30,6 +30,7 @@ struct page
   /* Memory-mapped file information, protected by frame->frame_lock. */
   bool private;               /* False to write back to file,                  
          true to write back to swap. */
+  bool swap;                  /* is the frame in swap currently*/
   struct file *file;          /* File. */
   off_t file_offset;          /* Offset in file. */
   off_t file_bytes;           /* Bytes to read/write, 1...PGSIZE. */
