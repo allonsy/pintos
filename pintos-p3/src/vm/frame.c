@@ -174,6 +174,10 @@ struct frame *perform_LRU()
       }
     }
   }
+  if(ret != NULL)
+  {
+    frame_lock(ret);
+  }
   return ret;
   
 }
