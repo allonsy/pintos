@@ -117,6 +117,7 @@ struct thread
     int num_extensions; //counts the number of stack growths, caps at 8MB = 2000 frames
 
     struct list maps;
+    struct lock map_lock;
     /*End Added by Student */
 
     /* Owned by thread.c. */

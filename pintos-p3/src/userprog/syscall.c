@@ -235,7 +235,22 @@ struct mapping
 
 static struct mapping *lookup_mapping (int handle) 
 {
-  return NULL;
+  struct thread *t = thread_current ();
+  struct mapping *m = NULL;
+
+  lock_acquire(&t->map_lock);
+
+  for(e=list_begin(&t->maps); e != list_end(&t->maps); e= list_next(e))
+  {
+    struct mapping *map = list_entry(e, struct mapping, elem);
+    if(map->handle == handle)
+    {
+      m = map;
+      break;
+    }
+  }
+  lock_release(&t->map_lock);
+  return m;
 }
 
 
@@ -244,7 +259,40 @@ static struct mapping *lookup_mapping (int handle)
 static int
 sys_mmap (int handle, void *addr)
 {
-  // might use: file_reopen(), file_length(), page_allocate()
+  /* can't mmap stdin, or to non-page aligned memory, or if addr == 0 cuz PINTOS */
+  if(handle <= 2 || (addr % PGSIZE) != 0 || addr == NULL)
+  {
+    return -1;
+  }
+
+  struct thread *t = thread_current ();
+  struct fdesc *fds = NULL;
+  struct list_elem *e;
+
+  for(e=list_begin(&t->files); e != list_end(&t->files); e = list_next(e))
+  {
+    fds = list_entry(e, struct fdesc, elem);
+    if(fds->fd == handle)
+      break;
+  }
+
+  if(fds == NULL || fds->fd != handle)
+    return -1;
+
+  struct file *rfile = file_reopen(fds->fptr);
+
+  if(file_length(rfile) == 0)
+  {
+    file_close(rfile);
+    return -1;
+  }
+
+  /* more shit to do here */
+
+
+
+
+
   return -1;
 }
 
