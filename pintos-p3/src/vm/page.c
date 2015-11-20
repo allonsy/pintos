@@ -181,6 +181,7 @@ page_deallocate (void *vaddr)
   if((p = page_for_addr (vaddr)) != NULL)
   {
     frame_free(p->frame);
+    free(p->filename);
     free(p);
   }
 
