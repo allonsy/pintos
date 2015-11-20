@@ -127,6 +127,16 @@ struct frame *perform_LRU()
   while(ret == NULL)
   {
     struct page *p = frames[hand].page;
+    if(p==NULL)
+    {
+      hand++;
+      if(hand==frame_cnt)
+      {
+        hand = 0;
+      }
+      continue;
+    }
+
     uint32_t *cur_pagedir = p->thread->pagedir;
     if(!pagedir_is_accessed(cur_pagedir, p))
     {
