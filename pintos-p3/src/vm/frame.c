@@ -41,11 +41,6 @@ frame_init (void)
    we hold its lock 
    the implementation below does not do any eviction or swapping
    it only tries to get a free frame */
-
-// struct frame*
-// try_frame_alloc_and_lock (struct page *page) 
-
-// temporary to make this a fake palloc
 struct frame*
 try_frame_alloc_and_lock (struct page *page)
 {
@@ -78,6 +73,8 @@ try_frame_alloc_and_lock (struct page *page)
     }
   }
 
+  /* at this point, we believe that all frames are held */
+
   /* f is locked when this returns */
   f = perform_LRU();
   struct page *p = f->page;
@@ -86,15 +83,30 @@ try_frame_alloc_and_lock (struct page *page)
     and no page had NULL */
   if(pagedir_is_dirty(p->thread->pagedir, p->addr) && !p->read_only)
   {
-    if(!swap_out(p))
+
+
+    if(p->private)
     {
-      PANIC("try_frame_alloc_and_lock: SWAP SPACE FULL");
+      if(!swap_out(p))
+      {
+        PANIC("try_frame_alloc_and_lock: SWAP SPACE FULL");
+      }
+      ASSERT(p->frame ==NULL);
+      f->page = page;
+      page->frame = f;
+      lock_release(&scan_lock);
+      return f;
     }
-    ASSERT(p->frame ==NULL);
-    f->page = page;
-    page->frame = f;
-    lock_release(&scan_lock);
-    return f;
+    else // mmap case
+    {
+      /* if filesize isn't fixed, this could be problematic */
+      /* could also be problematic if we can't get the file thing to work like vm segment had */
+      file_write_at (p->file, p->frame->base, p->file_bytes, p->file_offset); 
+      f->page = page;
+      page->frame = f;
+      lock_release(&scan_lock);
+      return f;
+    }
   } 
   else if (p->read_only && p->file != NULL)
   {

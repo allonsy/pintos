@@ -29,11 +29,16 @@ static int sys_read (int fd, void *buffer, unsigned length);
 static void sys_seek (int fd, unsigned position);
 static unsigned sys_tell (int fd);
 static void sys_close (int fd);
+static int sys_mmap (int handle, void *addr);
+static int sys_munmap (int mapping);
 
 static inline bool get_user (uint8_t *dst, const uint8_t *usrc);
 static inline bool put_user (uint8_t *udst, uint8_t byte);
 static void copy_in (void *dst_, const void *usrc_, size_t size);
 static char *copy_in_string (const char *us);
+
+
+
 
 void
 syscall_init (void) 
@@ -94,12 +99,14 @@ syscall_handler (struct intr_frame *f)
     case SYS_WAIT:
     case SYS_FILESIZE:
     case SYS_EXIT:
+    case SYS_MUNMAP:
       arg_cnt = 1;
       break;
 
     /* 2-arg sys calls */  
     case SYS_CREATE:
     case SYS_SEEK:
+    case SYS_MMAP:
       arg_cnt = 2;
       break;
 
@@ -161,9 +168,11 @@ syscall_handler (struct intr_frame *f)
     case SYS_FILESIZE:
       f->eax = (uint32_t) sys_filesize((int) args[0]);
       break;
-
     case SYS_EXIT:
       sys_exit((int) args[0]);
+      break;
+    case SYS_MUNMAP:
+      sys_munmap((int) args[0]);
       break;
 
     /* 2-arg sys calls */  
@@ -172,6 +181,9 @@ syscall_handler (struct intr_frame *f)
       break;
     case SYS_SEEK:
       sys_seek((int) args[0], (unsigned) args[1]);
+      break;
+    case SYS_MMAP:
+      sys_mmap((int) args[0], (void*) args[1]);
       break;
 
     /* 3-arg sys calls */  
@@ -190,6 +202,49 @@ syscall_handler (struct intr_frame *f)
 
   return;
 }
+
+
+/* Binds a mapping id to a region of memory and a file. */
+struct mapping
+{
+  struct list_elem elem;      /* List element. */
+  int handle;                 /* Mapping id. */
+  struct file *file;          /* File. */
+  uint8_t *base;              /* Start of memory mapping. */
+  size_t page_cnt;            /* Number of pages mapped. */
+};
+
+
+static struct mapping *lookup_mapping (int handle) 
+{
+  return NULL;
+}
+
+
+/* Remove mapping M from the virtual address space,                              
+   writing back any pages that have changed. */
+static void unmap (struct mapping *m) {
+  // might use: page_deallocate()
+}
+
+static int
+sys_mmap (int handle, void *addr)
+{
+  // might use: file_reopen(), file_length(), page_allocate()
+  return -1;
+}
+
+static int
+sys_munmap (int mapping)
+{
+  unmap (lookup_mapping (mapping));
+  return 0;
+}
+
+
+
+
+
 
 
 

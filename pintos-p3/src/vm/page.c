@@ -32,7 +32,6 @@ destroy_page (struct hash_elem *p_, void *aux UNUSED)
 /* Returns the page containing the given virtual address,
    or a null pointer if no such page exists.
    NOTE THIS CODE COPIED FROM PINTOS DOCUMENTATION */
-//static struct
 struct
 page *page_for_addr (const void *address) 
 {
@@ -66,6 +65,7 @@ page_exit (void)
 bool 
 page_in (void *fault_addr) 
 {
+  struct file *rfile;
   struct page *p = page_for_addr (fault_addr);
 
   if(p == NULL)
@@ -88,7 +88,15 @@ page_in (void *fault_addr)
     {
       //struct file *rfile = file_reopen(p->file);
       //printf("filename:%s\n", p->filename);
-      struct file*rfile = filesys_open(p->filename);
+      if(p->filename != NULL) 
+      {
+        rfile = filesys_open(p->filename);
+      }  
+      else
+      {
+        /* this is ostensibly the mmap case */
+        rfile = p->file;
+      }
       //printf("INITIAL Length: %ld\n", file_length(rfile));
       //printf("pointer to file: %p, base: %d, file_bytes: %d, file_offset: %d\n", rfile, f->base, p->file_bytes, p->file_offset);
       read = file_read_at (rfile, f->base, p->file_bytes, p->file_offset);
@@ -96,6 +104,12 @@ page_in (void *fault_addr)
       {
         frame_unlock(f);
         frame_free(f);
+
+        if(p->filename != NULL) 
+        {
+          /* don't do this if mmapd */
+          free(rfile);
+        }
         PANIC("page_in: unable to read correct number of bytes from file %p, read %d, expected %d", p->file, read, p->file_bytes);
         return false;
       }
@@ -106,6 +120,13 @@ page_in (void *fault_addr)
     {
       memset (f->base, 0, PGSIZE);
     }
+
+    if(p->filename != NULL) 
+    {
+      /* don't do this if mmapd */
+      free(rfile);
+    }
+    
     //printf("Permissions are: %d\n", p->read_only);
     if(pagedir_set_page (p->thread->pagedir, p->addr, f->base, !p->read_only))
     {
@@ -178,12 +199,11 @@ page_deallocate (void *vaddr)
   struct page *p;
   if((p = page_for_addr (vaddr)) != NULL)
   {
+    hash_delete (&p->thread->supp_pt, &p->hash_elem);
     frame_free(p->frame);
     free(p->filename);
     free(p);
   }
-
-  /* TO DO: remove the page from the hash table */
 }
 
 /* Returns a hash value for page p. 
@@ -208,15 +228,23 @@ page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNU
 bool 
 page_lock (const void *addr, bool will_write) 
 {
-  // not sure what will_write is for, why we return a bool
   struct page *p = page_for_addr (addr);
-  frame_lock(p->frame);
-  return true;
+  if(!will_write || !p->read_only)
+  {
+    frame_lock(p->frame);
+    return true;
+  }
+  return false;
 }
 
+/* safe whether or not you hold the lock! */
 void 
 page_unlock (const void *addr) 
 {
   struct page *p = page_for_addr (addr);
-  frame_unlock(p->frame);
+
+  if(lock_held_by_current_thread(&p->frame->lock))
+  {
+    frame_unlock(p->frame);
+  }
 }

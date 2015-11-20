@@ -215,6 +215,7 @@ thread_create (const char *name, int priority,
     lock_release(&par->child_list_lock);
     sema_init(&t->exec_wait_sema, 0);
     lock_init(&t->supp_pt_lock);
+    list_init(&t->maps);
 
     // added for VM
     if(!page_init(&t->supp_pt))

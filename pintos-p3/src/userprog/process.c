@@ -662,6 +662,7 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
         strlcpy(p->filename, filename, strlen(filename)+1);
         p->file_offset = offset_tracker;
         p->file_bytes = page_read_bytes;
+        p->private = false;
       }
 
       /* Advance. */
