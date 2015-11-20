@@ -15,7 +15,7 @@ struct page
   /* Immutable members. */
   void *addr;                 /* User virtual address. */
   bool read_only;             /* Read-only page? */
-  struct thread *t;      /* Owning thread. */
+  struct thread *thread;      /* Owning thread. */
 
   /* Accessed only in owning process context. */
   struct hash_elem hash_elem; /* struct thread `pages' hash element. */

@@ -3,6 +3,7 @@
 #include "threads/vaddr.h"
 #include "devices/block.h"
 #include "lib/kernel/bitmap.h"
+#include "userprog/pagedir.h"
 
 /*
 
@@ -63,15 +64,11 @@ swap_init (void)
 
 /* assumes that the page is held in a valid block sector 
   and that frame f is available, the hard bits are handled
-  elsewhere. This function just writes into the frame */
+  elsewhere. This function just writes into the frame 
+  This function is called from page_in */
 bool
 swap_in (struct page *p, struct frame *f)
 {
-  // might want to use these functions:
-  // - lock_held_by_current_thread()
-  // - block_read()
-  // - bitmap_reset()
-
   int i;
 
   /* this lock on the outside since it has more contexts
@@ -91,12 +88,18 @@ swap_in (struct page *p, struct frame *f)
   lock_release(&swap_lock);
 
   p->frame = f;
+  p->sector = -1;
 
   frame_unlock(f);
-	// vestigial
-  return false;
+
+  /* NOTE, we do not need to set the pagedir entry here, as that is handled in page_in */
+
+  return true;
 }
 
+/* this function will be called from try_frame_alloc_and_lock.
+  it is solely for the actual eviction of a page, not the
+  algorithm that finds it */
 bool 
 swap_out (struct page *p) 
 {
@@ -106,27 +109,50 @@ swap_out (struct page *p)
 
   /* this lock on the outside since it has more contexts
     in which it can be locked */
-  frame_lock(p->frame);
+  frame_lock(p->frame);  
   lock_acquire(&swap_lock);
 
-  // make sure idx_first_free is in fact free
-  if(!bitmap_test (swap_bitmap, idx_first_free))
+  //PANIC("swap_out: past lock acquisition");
+
+  if(idx_first_free != BITMAP_ERROR && !bitmap_test (swap_bitmap, idx_first_free))
   {
+    /* by the above test, idx_first_free is valid AND is free */
     bit_idx = idx_first_free;
     bitmap_mark (swap_bitmap, bit_idx);
+
+    /* in theory, idx_first_free is the first free bit, so search for the next free bit */
     idx_first_free = bitmap_scan (swap_bitmap, idx_first_free+1, 1, false);
+
+     /* if idx_first_free is a BITMAP_ERROR (ie, previous scan found no free bits after
+      the previous value of idx_first_free), scan the whole bitmap to reset idx_first_free 
+      if it is still BITMAP_ERROR, then we confirm that there are no more free bits */
+    if(idx_first_free == BITMAP_ERROR)
+    {
+      idx_first_free = bitmap_scan (swap_bitmap, 0, 1, false);
+    }
   }
   else
   {
-    // theoretically idx_first_free is handled correctly and this never happens
-    // but otherwise we spend time scanning the bitmap to make sure it 
-    // gets reset correctly
+    /* if idx_first_free is BITMAP_ERROR or is not actually free, 
+    this likely means that the bitmap is full. Just to verify, we scan from the beginning again */
     bit_idx = bitmap_scan (swap_bitmap, 0, 1, false);
-    bitmap_mark (swap_bitmap, bit_idx);
+    if(bit_idx != BITMAP_ERROR)
+    {
+      bitmap_mark (swap_bitmap, bit_idx);
+    }
     idx_first_free = bitmap_scan (swap_bitmap, 0, 1, false);
+  } 
+
+  /* no free things in the swap sector */
+  if(bit_idx == BITMAP_ERROR)
+  {
+    frame_unlock(p->frame); 
+    return false;
   }
-  block_sector_t start = PAGE_SECTORS * bit_idx;
+
   lock_release(&swap_lock);
+
+  block_sector_t start = PAGE_SECTORS * bit_idx;
 
   for(i = 0; i < PAGE_SECTORS; i++)
   {
@@ -136,9 +162,10 @@ swap_out (struct page *p)
 
   p->sector = start;
 
-  frame_unlock(p->frame);
+  pagedir_clear_page (p->thread->pagedir, p->addr);
 
+  frame_unlock(p->frame);
   frame_free(p->frame);
-  //vestigial
-  return false;
+
+  return true;
 }

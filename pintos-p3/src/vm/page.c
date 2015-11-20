@@ -102,6 +102,11 @@ page_in (void *fault_addr)
       }
 
       memset (f->base + read, 0, PGSIZE - read);
+
+      // frame_unlock(f);
+      // swap_out(p);
+      // swap_in(p, f);
+      // frame_lock(f);
     }
     else //page has no file, probably a stack page
     {
@@ -109,7 +114,7 @@ page_in (void *fault_addr)
     }
 
     //printf("Permissions are: %d\n", p->read_only);
-    if(pagedir_set_page (p->t->pagedir, p->addr, f->base, !p->read_only))
+    if(pagedir_set_page (p->thread->pagedir, p->addr, f->base, !p->read_only))
     {
       frame_unlock(f);
       return true;
@@ -154,7 +159,7 @@ page_allocate (void *vaddr, bool read_only)
 
   p->addr = pg_round_down (vaddr);
   p->read_only = read_only;
-  p->t = t;
+  p->thread = t;
 
   p->frame = NULL;
 
