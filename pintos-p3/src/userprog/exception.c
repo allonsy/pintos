@@ -8,6 +8,7 @@
 #include "threads/malloc.h"
 #include "threads/vaddr.h"
 #include "userprog/syscall.h"
+#include "vm/page.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -191,7 +192,27 @@ page_fault (struct intr_frame *f)
     struct page *p2 = page_for_addr (fault_addr);
     if(p2 == NULL)
     {
-      PANIC("page_fault: SPT doesn't have address %p. PHYS_BASE %p", fault_addr, PHYS_BASE);
+      
+      struct thread *t = thread_current();
+      if(t->num_extensions > 20)
+      {
+        except_exit();
+      }
+      t->stack = f->esp;
+
+      if(fault_addr >= t->stack-32)
+      {
+        uint32_t *newPageAddr = pg_round_down(fault_addr);
+        struct page *p = page_allocate(newPageAddr, 0);
+        if(p != NULL)
+        {
+          t->num_extensions++;
+          page_in(fault_addr);
+          return;
+        }
+      }
+
+      except_exit();
     }
 
     if(!page_in(fault_addr))
