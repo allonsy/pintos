@@ -102,14 +102,6 @@ page_in (void *fault_addr)
       }
 
       memset (f->base + read, 0, PGSIZE - read);
-
-      // /* DELETE THIS ONCE SATISFIED THAT SWAPPING IS WORKING CORRECTLY */
-      // frame_unlock(f);
-      // swap_out(p);
-      // p->frame = f;
-      // frame_lock(f);
-      // swap_in(p);
-      // /* END */
     }
     else //page has no file, probably a stack page
     {

@@ -95,7 +95,9 @@ swap_in (struct page *p)
 
 /* this function will be called from try_frame_alloc_and_lock.
   it is solely for the actual eviction of a page, not the
-  algorithm that finds it */
+  algorithm that finds it 
+  this function assumes that the frame associated with the page is locked
+  frame_free must be called AFTER this function.*/
 bool 
 swap_out (struct page *p) 
 {
@@ -105,7 +107,6 @@ swap_out (struct page *p)
 
   /* this lock on the outside since it has more contexts
     in which it can be locked */
-  frame_lock(p->frame);  
   lock_acquire(&swap_lock);
 
   //PANIC("swap_out: past lock acquisition");
@@ -157,11 +158,9 @@ swap_out (struct page *p)
   }
 
   p->sector = start;
+  p->frame = NULL; /* safe since we are calling this with frame lock and scan lock held */
 
   pagedir_clear_page (p->thread->pagedir, p->addr);
-
-  frame_unlock(p->frame);
-  frame_free(p->frame);
 
   return true;
 }

@@ -49,39 +49,55 @@ frame_init (void)
 struct frame*
 try_frame_alloc_and_lock (struct page *page)
 {
-  // super simple (ie dumb) method to find a frame
-  // does no eviction or smart things and stuff
-
   int i;
+  struct frame *f;
+  bool success;
 
   lock_acquire(&scan_lock);
   
   for(i = 0; i < frame_cnt; i++)
   {
-    struct frame *f = &frames[i];
-    bool success = lock_try_acquire(&f->lock);
-    if(success)
-    {
-      if(f->page == NULL)
+    f = &frames[i];
+    if(!lock_held_by_current_thread(&f->lock))
+    {  
+      success = lock_try_acquire(&f->lock);
+      if(success)
       {
-        f->page = page;
-        page->frame = f;
-        lock_release(&scan_lock);
-        return f;
-      }
-      else
-      {
-        lock_release(&f->lock);
+        if(f->page == NULL)
+        {
+          f->page = page;
+          page->frame = f;
+          lock_release(&scan_lock);
+          return f;
+        }
+        else
+        {
+          lock_release(&f->lock);
+        }
       }
     }
   }
 
+  /* f is locked when this returns */
+  f = perform_LRU();
+  struct page *p = f->page;
+
+  /* p should not be NULL since we held the scan lock above
+    and no page had NULL */
+  if(/* DIRTY */ && false)
+  {
+    swap_out(p);
+    ASSERT(p)
+  } 
+  else if (p->read_only && false)
+  {
+    p->frame == NULL; /* safe to do since scan lock and frame lock are held */
+    pagedir_clear_page (p->thread->pagedir, p->addr);
+  }
+
+
+
   lock_release(&scan_lock);
-
-
-  /* TO DO: Find a frame to evict here 
-    then call swap_out (f->page) followed by frame->free 
-    then return f */
 
   PANIC("no more frames :(");
 
@@ -129,11 +145,7 @@ struct frame *perform_LRU()
     struct page *p = frames[hand].page;
     if(p==NULL)
     {
-      hand++;
-      if(hand==frame_cnt)
-      {
-        hand = 0;
-      }
+      hand = (hand++) % frame_cnt;
       continue;
     }
 
@@ -157,11 +169,7 @@ struct frame *perform_LRU()
       pagedir_set_accessed(cur_pagedir, p, 0);
       didChange = 1;
     }
-    hand++;
-    if(hand==frame_cnt)
-    {
-      hand=0;
-    }
+    hand = (hand++) % frame_cnt;
     if(hand == top)
     {
       if(didChange)
@@ -174,10 +182,9 @@ struct frame *perform_LRU()
       }
     }
   }
-  if(ret != NULL)
+  if(ret != NULL && !lock_held_by_current_thread())
   {
     frame_lock(ret);
   }
   return ret;
-  
 }
