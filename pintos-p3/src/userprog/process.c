@@ -684,7 +684,6 @@ vm_setup_stack (void **esp, char **arglist, int argc)
 {
 
   //PANIC("looks like error was in setup stack?");
-  uint8_t *kpage;
   struct page *p;
 
   if ((p = page_allocate (((uint8_t *) PHYS_BASE) - PGSIZE, false)) != NULL ) 

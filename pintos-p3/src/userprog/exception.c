@@ -233,7 +233,7 @@ page_fault (struct intr_frame *f)
     }
     else
     {
-      PANIC("page_fault: WHY IS KERNEL TRYING TO WRITE TO READ ONLY PAGES?!");
+      except_exit();
     }
     return;
   }
