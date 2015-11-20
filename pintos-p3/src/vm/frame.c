@@ -3,6 +3,8 @@
 #include "threads/synch.h"
 #include "lib/debug.h"
 #include "threads/loader.h"
+#include "userprog/pagedir.h"
+#include "vm/page.h"
 
 
 static struct frame *frames;
@@ -17,7 +19,7 @@ frame_init (void)
 {
   void *base;
   int i = 0;
-
+  hand = 0;
   lock_init (&scan_lock);
 
   frames = malloc (sizeof *frames * init_ram_pages);
@@ -114,4 +116,54 @@ void
 frame_unlock (struct frame *f) 
 {
   lock_release(&f->lock);
+}
+
+struct frame *perform_LRU()
+{
+  struct frame *ret=NULL;
+  int didChange = 0;
+  int top = hand;
+  int oneshot = 0;
+  while(ret == NULL)
+  {
+    struct page *p = frames[hand].page;
+    uint32_t *cur_pagedir = p->thread->pagedir;
+    if(!pagedir_is_accessed(cur_pagedir, p))
+    {
+      if(!pagedir_is_dirty(cur_pagedir, p))
+      {
+        ret = &frames[hand];
+      }
+      else
+      {
+        if(oneshot)
+        {
+          ret = &frames[hand];
+        }
+      }
+    }
+    else
+    {
+      pagedir_set_accessed(cur_pagedir, p, 0);
+      didChange = 1;
+    }
+    hand++;
+    if(hand==frame_cnt)
+    {
+      hand=0;
+    }
+    if(hand == top)
+    {
+      if(didChange)
+      {
+        didChange = 0;
+      }
+      else
+      {
+        oneshot = 1;
+      }
+    }
+  }
+  return ret;
+  
 }
