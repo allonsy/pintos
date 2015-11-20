@@ -62,22 +62,22 @@ swap_init (void)
   lock_init (&swap_lock);
 }
 
-/* assumes that the page is held in a valid block sector 
-  and that frame f is available, the hard bits are handled
-  elsewhere. This function just writes into the frame 
-  This function is called from page_in */
+/* assumes that the page is in a valid block sector
+  AND that the page's frame field holds a free frame
+  and that we currently hold the lock to said frame.
+  This function should only be called from page_in
+   */
 bool
-swap_in (struct page *p, struct frame *f)
+swap_in (struct page *p)
 {
   int i;
 
   /* this lock on the outside since it has more contexts
     in which it can be locked */
-  frame_lock(f);
 
   for(i = 0; i < PAGE_SECTORS; i++)
   {
-    block_read (swap_device, p->sector + i, f->base + (BLOCK_SECTOR_SIZE * i));
+    block_read (swap_device, p->sector + i, p->frame->base + (BLOCK_SECTOR_SIZE * i));
   }
 
   size_t bit_idx = p->sector / PAGE_SECTORS;
@@ -86,11 +86,7 @@ swap_in (struct page *p, struct frame *f)
   bitmap_reset (swap_bitmap, bit_idx);
   idx_first_free = bit_idx < idx_first_free ? bit_idx : idx_first_free;
   lock_release(&swap_lock);
-
-  p->frame = f;
   p->sector = -1;
-
-  frame_unlock(f);
 
   /* NOTE, we do not need to set the pagedir entry here, as that is handled in page_in */
 
