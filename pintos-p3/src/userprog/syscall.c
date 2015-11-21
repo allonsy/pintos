@@ -359,6 +359,7 @@ sys_mmap (int handle, void *addr)
   map->page_cnt = page_cnt;
 
   /* list is sorted in increasing order, give the handle MAX + 1 */
+  lock_acquire(&t->map_lock);
   if(list_empty(&t->maps))
   {
     map->handle = 3;
@@ -369,16 +370,31 @@ sys_mmap (int handle, void *addr)
   }
 
   list_push_back(&t->maps, &map->elem);
+  lock_release(&t->map_lock);
 
   return map->handle;
 }
 
 /* Remove mapping M from the virtual address space,                              
    writing back any pages that have changed. */
-static int
+void
 sys_munmap (int mapping)
 {
-  return 0;
+  struct mapping *map = lookup_mapping(mapping);
+
+  if(map == NULL)
+    return;
+
+  void *itr_addr = map->base;
+  int i = 0;
+
+  while(i < map->page_cnt)
+  {
+    struct page *p = page_for_addr(itr_addr);
+    page_deallocate(p);
+    i++;
+  }
+  return;
 }
 
 

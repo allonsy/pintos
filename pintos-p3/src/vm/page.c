@@ -215,6 +215,8 @@ page_deallocate (void *vaddr)
     {
       lock_release(&t->supp_pt_lock);
     }
+
+    /* do writeback for mmap'd files */
     
     frame_free(p->frame);
     free(p);
