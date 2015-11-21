@@ -289,7 +289,7 @@ sys_mmap (int handle, void *addr)
 
   if((rfile= file_reopen(fds->fptr)) == NULL)
   {
-    PANIC("sys_mmap: failed to open file");
+    //PANIC("sys_mmap: failed to open file");
     return -1;
   }
 
@@ -350,7 +350,7 @@ sys_mmap (int handle, void *addr)
 
   if(map == NULL)
   {
-    PANIC("sys_mmap: not enough memory for mapping struct :(");
+    //PANIC("sys_mmap: not enough memory for mapping struct :(");
     return -1;
   }
 
