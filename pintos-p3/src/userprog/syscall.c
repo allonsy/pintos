@@ -359,7 +359,14 @@ sys_mmap (int handle, void *addr)
   map->page_cnt = page_cnt;
 
   /* list is sorted in increasing order, give the handle MAX + 1 */
-  map->handle = list_entry(list_back(&t->maps), struct mapping, elem)->handle + 1;
+  if(list_empty(&t->maps))
+  {
+    map->handle = 3;
+  }
+  else
+  {
+    map->handle = list_entry(list_back(&t->maps), struct mapping, elem)->handle + 1;
+  }
 
   list_push_back(&t->maps, &map->elem);
 
