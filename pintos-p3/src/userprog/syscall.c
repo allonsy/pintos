@@ -321,7 +321,7 @@ sys_mmap (int handle, void *addr)
   {
     /* Calculate how to fill this page.
        We will read PAGE_READ_BYTES bytes from FILE */
-    size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
+    size_t page_read_bytes = len < PGSIZE ? len : PGSIZE;
 
     /* add page to supplemental PT. mmap'd files are writable */
     struct page *p = page_allocate (itr_addr, true);
@@ -345,7 +345,8 @@ sys_mmap (int handle, void *addr)
   }
 
   
-  struct mapping *map = malloc(sizeof struct mapping);
+  struct mapping *map;
+  map= malloc(sizeof *map);
 
   if(map == NULL)
   {
@@ -358,7 +359,7 @@ sys_mmap (int handle, void *addr)
   map->page_cnt = page_cnt;
 
   /* list is sorted in increasing order, give the handle MAX + 1 */
-  map->handle = list_entry(list_back(&t->map), struct mapping, elem)->handle + 1;
+  map->handle = list_entry(list_back(&t->maps), struct mapping, elem)->handle + 1;
 
   list_push_back(&t->maps, &map->elem);
 
