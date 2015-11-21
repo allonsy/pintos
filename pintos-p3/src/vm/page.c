@@ -216,7 +216,7 @@ page_deallocate (void *vaddr)
       lock_release(&t->supp_pt_lock);
     }
 
-    if(!page->private)
+    if(!p->private)
     {
       file_write_at (p->file, p->frame->base, p->file_bytes, p->file_offset); 
     }

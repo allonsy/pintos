@@ -31,7 +31,7 @@ static void sys_seek (int fd, unsigned position);
 static unsigned sys_tell (int fd);
 static void sys_close (int fd);
 static int sys_mmap (int handle, void *addr);
-static int sys_munmap (int mapping);
+static void  sys_munmap (int mapping);
 
 static inline bool get_user (uint8_t *dst, const uint8_t *usrc);
 static inline bool put_user (uint8_t *udst, uint8_t byte);
@@ -190,7 +190,7 @@ syscall_handler (struct intr_frame *f)
       sys_exit((int) args[0]);
       break;
     case SYS_MUNMAP:
-      f->eax = sys_munmap((int) args[0]);
+      sys_munmap((int) args[0]);
       break;
 
     /* 2-arg sys calls */  
