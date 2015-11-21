@@ -216,7 +216,10 @@ page_deallocate (void *vaddr)
       lock_release(&t->supp_pt_lock);
     }
 
-    /* do writeback for mmap'd files */
+    if(!page->private)
+    {
+      file_write_at (p->file, p->frame->base, p->file_bytes, p->file_offset); 
+    }
     
     frame_free(p->frame);
     free(p);
