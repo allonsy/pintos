@@ -260,8 +260,8 @@ static struct mapping *lookup_mapping (int handle)
 static int
 sys_mmap (int handle, void *addr)
 {
-  /* can't mmap stdin, or to non-page aligned memory, or if addr == 0 cuz PINTOS */
-  if(handle <= 2 || addr == NULL /* || addr isn't page aligned */)
+  /* can't mmap stdin, stderr, or stdout, or to non-page aligned memory, or if addr == 0 cuz PINTOS */
+  if(handle <= 2 || addr == NULL || pg_round_down(addr) != addr )
   {
     return -1;
   }
@@ -269,6 +269,11 @@ sys_mmap (int handle, void *addr)
   struct thread *t = thread_current ();
   struct fdesc *fds = NULL;
   struct list_elem *e;
+  struct file *rfile;
+  size_t len, page_cnt;
+  void *itr_addr;
+  off_t offset_tracker;
+
 
   for(e=list_begin(&t->files); e != list_end(&t->files); e = list_next(e))
   {
@@ -278,23 +283,86 @@ sys_mmap (int handle, void *addr)
   }
 
   if(fds == NULL || fds->fd != handle)
+  {
     return -1;
+  }
 
-  struct file *rfile = file_reopen(fds->fptr);
+  if((rfile= file_reopen(fds->fptr)) == NULL)
+  {
+    PANIC("sys_mmap: failed to open file");
+    return -1;
+  }
 
-  if(file_length(rfile) == 0)
+  if((len = file_length(rfile)) == 0)
   {
     file_close(rfile);
     return -1;
   }
 
-  /* more shit to do here */
+  itr_addr = addr;
 
+  while(itr_addr < addr + len)
+  {
+    struct page *p = page_for_addr(itr_addr);
+    if(p != NULL) // page exists and is mapped, fail
+    {
+      file_close(rfile);
+      return -1;
+    }
+    itr_addr += PGSIZE;
+  }
 
+  /* if we made it through that loop, we are safe to add to our SUPP pt */
 
+  itr_addr = addr;
+  offset_tracker = 0; // I think this is correct, since we read in the whole file
+  page_cnt = 0;
+  while (len > 0) 
+  {
+    /* Calculate how to fill this page.
+       We will read PAGE_READ_BYTES bytes from FILE */
+    size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
 
+    /* add page to supplemental PT. mmap'd files are writable */
+    struct page *p = page_allocate (itr_addr, true);
+    if(p == NULL)
+    {
+      return -1;
+    }
+    if(page_read_bytes > 0)
+    {
+      p->file = rfile;
+      p->file_offset = offset_tracker;
+      p->file_bytes = page_read_bytes;
+      p->private = false; /* SINCE STUFF LOADED HERE IS MMAP'D? */
+    }
 
-  return -1;
+    /* Advance. */
+    offset_tracker += page_read_bytes;
+    len -= page_read_bytes;
+    itr_addr += PGSIZE;
+    page_cnt++;
+  }
+
+  
+  struct mapping *map = malloc(sizeof struct mapping);
+
+  if(map == NULL)
+  {
+    PANIC("sys_mmap: not enough memory for mapping struct :(");
+    return -1;
+  }
+
+  map->base = addr;
+  map->file = rfile;
+  map->page_cnt = page_cnt;
+
+  /* list is sorted in increasing order, give the handle MAX + 1 */
+  map->handle = list_entry(list_back(&t->map), struct mapping, elem)->handle + 1;
+
+  list_push_back(&t->maps, &map->elem);
+
+  return map->handle;
 }
 
 /* Remove mapping M from the virtual address space,                              

@@ -509,7 +509,7 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
          data will be loaded lazily by the page fault handler calling
          page_in */
       struct page *p = page_allocate (upage, !writable);
-      p->file = NULL;
+      
       //printf("allocating page for addr: %p\n", p->addr);
       if(p == NULL)
       {
