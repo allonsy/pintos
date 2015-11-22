@@ -84,7 +84,6 @@ try_frame_alloc_and_lock (struct page *page)
       {
         PANIC("try_frame_alloc_and_lock: SWAP SPACE FULL");
       }
-      /* swapout clears from pagedir */
       ASSERT(p->frame ==NULL);
       f->page = page;
       page->frame = f;
@@ -96,8 +95,6 @@ try_frame_alloc_and_lock (struct page *page)
       /* if filesize isn't fixed, this could be problematic */
       /* could also be problematic if we can't get the file thing to work like vm segment had */
       file_write_at (p->file, p->frame->base, p->file_bytes, p->file_offset); 
-      pagedir_clear_page (p->thread->pagedir, p->addr);
-      p->frame = NULL;
       f->page = page;
       page->frame = f;
       lock_release(&scan_lock);
