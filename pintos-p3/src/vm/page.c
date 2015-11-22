@@ -246,7 +246,7 @@ page_deallocate (void *vaddr)
       lock_release(&t->supp_pt_lock);
     }
 
-    if(!p->private)
+    if(!p->private && p->frame && pagedir_is_dirty(t->pagedir, p->addr))
     {
       file_write_at (p->file, p->frame->base, p->file_bytes, p->file_offset);
     }

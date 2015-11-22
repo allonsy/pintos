@@ -148,6 +148,10 @@ frame_lock (struct frame *f)
 void 
 frame_free (struct frame *f)
 {
+  if(!f)
+  {
+    return;
+  }
   lock_acquire(&scan_lock);
   lock_acquire(&f->lock);
   if(f != NULL)
