@@ -94,6 +94,7 @@ page_exit (void)
 bool 
 page_in (void *fault_addr) 
 {
+  struct file *rfile;
   struct page *p = page_for_addr (fault_addr);
   if(p == NULL)
   {
@@ -118,6 +119,14 @@ page_in (void *fault_addr)
     }
     else if(p->file != NULL)
     {
+      if(p->filename)
+      {
+        rfile = filesys_open(p->filename);
+      }
+      else
+      {
+        rfile = p->file;
+      }
       read = file_read_at (p->file, f->base, p->file_bytes, p->file_offset);
       if(read != p->file_bytes)
       {
@@ -132,6 +141,10 @@ page_in (void *fault_addr)
     else //page has no file, probably a stack page
     {
       memset (f->base, 0, PGSIZE);
+    }
+    if(p->filename)
+    {
+      free(rfile);
     }
 
     if(pagedir_set_page (p->thread->pagedir, p->addr, f->base, !p->read_only))
@@ -171,6 +184,7 @@ page_allocate (void *vaddr, bool read_only)
   struct thread *t = thread_current ();
   p = malloc(sizeof *p);
   p->swap = false;
+  p->filename = NULL;
   p->private=true;
   if(p == NULL)
   {
@@ -237,7 +251,10 @@ page_deallocate (void *vaddr)
       file_write_at (p->file, p->frame->base, p->file_bytes, p->file_offset);
     }
     pagedir_clear_page (p->thread->pagedir, p->addr);
-    
+    if(p->filename)
+    {
+      free(p->filename);
+    }
     frame_free(p->frame);
     free(p);
   }

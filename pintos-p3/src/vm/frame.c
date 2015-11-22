@@ -48,8 +48,10 @@ try_frame_alloc_and_lock (struct page *page)
   int i;
   struct frame *f;
   //bool success;
-
-  lock_acquire(&scan_lock);
+  if(!lock_held_by_current_thread(&scan_lock))
+  {
+    lock_acquire(&scan_lock);
+  }
   
   for(i = 0; i < frame_cnt; i++)
   {
