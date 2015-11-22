@@ -95,6 +95,7 @@ try_frame_alloc_and_lock (struct page *page)
       /* if filesize isn't fixed, this could be problematic */
       /* could also be problematic if we can't get the file thing to work like vm segment had */
       file_write_at (p->file, p->frame->base, p->file_bytes, p->file_offset); 
+      pagedir_clear_page (p->thread->pagedir, p->addr);
       f->page = page;
       page->frame = f;
       lock_release(&scan_lock);
