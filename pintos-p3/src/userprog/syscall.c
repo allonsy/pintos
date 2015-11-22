@@ -395,8 +395,7 @@ sys_munmap (int mapping)
 
   while(i < map->page_cnt)
   {
-    struct page *p = page_for_addr(itr_addr);
-    page_deallocate(p);
+    page_deallocate(itr_addr);
     i++;
   }
   lock_acquire(&t->map_lock);
