@@ -77,6 +77,7 @@ page_exit (void)
 bool 
 page_in (void *fault_addr) 
 {
+  struct file *rfile;
   struct page *p = page_for_addr (fault_addr);
   if(p == NULL)
   {
@@ -101,6 +102,15 @@ page_in (void *fault_addr)
     }
     else if(p->file != NULL)
     {
+      if(p->filename != NULL)     
+      {    
+        rfile = filesys_open(p->filename);   
+      }      
+      else   
+      {    
+        /* this is ostensibly the mmap case */   
+        rfile = p->file;   
+      }
       read = file_read_at (p->file, f->base, p->file_bytes, p->file_offset);
       if(read != p->file_bytes)
       {
@@ -120,6 +130,10 @@ page_in (void *fault_addr)
     if(pagedir_set_page (p->thread->pagedir, p->addr, f->base, !p->read_only))
     {
       frame_unlock(f);
+      if(p->filename)
+      {
+        free(rfile);
+      }
       return true;
     }
     else
@@ -219,6 +233,10 @@ page_deallocate (void *vaddr)
     if(!p->private)
     {
       file_write_at (p->file, p->frame->base, p->file_bytes, p->file_offset); 
+    }
+    if(p->filename)
+    {
+      free(p->filename);
     }
     
     frame_free(p->frame);

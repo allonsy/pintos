@@ -263,7 +263,7 @@ static bool vm_setup_stack (void **esp, char **arglist, int argc);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
-                          bool writable);
+                          bool writable, char *filename);
 
 
 
@@ -363,7 +363,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
                   zero_bytes = ROUND_UP (page_offset + phdr.p_memsz, PGSIZE);
                 }
               if (!vm_load_segment (file, file_page, (void *) mem_page,
-                                 read_bytes, zero_bytes, writable))
+                                 read_bytes, zero_bytes, writable, file_exec_name))
                 goto done;
               }
           else
@@ -486,7 +486,7 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
   */
 static bool
 vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
-              uint32_t read_bytes, uint32_t zero_bytes, bool writable) 
+              uint32_t read_bytes, uint32_t zero_bytes, bool writable, char *filename) 
 {
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
@@ -515,9 +515,13 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
       {
         return false;
       }
+      p->file = NULL;
+      p->filename = NULL;
       if(page_read_bytes > 0)
       {
         p->file = rfile;
+        p->filename= malloc(strlen(filename)+1);    
+        strlcpy(p->filename, filename, strlen(filename)+1);
         p->file_offset = offset_tracker;
         p->file_bytes = page_read_bytes;
         p->private = true; /* SINCE STUFF LOADED HERE IS NOT MMAP'D? PROBABLY UP FOR DEBATE */
