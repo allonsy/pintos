@@ -80,7 +80,7 @@ page_exit (void)
       page_deallocate deletes an element from the hash table,
       which invalidates the iterator */
     hash_first(&itr, &t->supp_pt);
-    p = hash_entry(&itr.elem, struct page, hash_elem);
+    p = hash_entry(itr.elem, struct page, hash_elem);
     page_deallocate(p->addr);
   }
   printf("page_exit: out of the loop with no memory errors!!\n");
