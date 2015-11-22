@@ -515,6 +515,7 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
       {
         return false;
       }
+      p->file = NULL;
       if(page_read_bytes > 0)
       {
         p->file = rfile;

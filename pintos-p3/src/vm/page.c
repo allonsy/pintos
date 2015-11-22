@@ -181,7 +181,6 @@ page_allocate (void *vaddr, bool read_only)
     lock_release(&t->supp_pt_lock);
   }
 
-
   // note hash_insert returns null on success
   if(!success)
   {
@@ -218,7 +217,8 @@ page_deallocate (void *vaddr)
 
     if(!p->private)
     {
-      file_write_at (p->file, p->frame->base, p->file_bytes, p->file_offset); 
+      file_write_at (p->file, p->frame->base, p->file_bytes, p->file_offset);
+      pagedir_clear_page (p->thread->pagedir, p->addr);
     }
     
     frame_free(p->frame);

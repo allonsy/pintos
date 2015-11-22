@@ -324,11 +324,12 @@ sys_mmap (int handle, void *addr)
     size_t page_read_bytes = len < PGSIZE ? len : PGSIZE;
 
     /* add page to supplemental PT. mmap'd files are writable */
-    struct page *p = page_allocate (itr_addr, true);
+    struct page *p = page_allocate (itr_addr, false);
     if(p == NULL)
     {
       return -1;
     }
+    p->file = NULL;
     if(page_read_bytes > 0)
     {
       p->file = rfile;
@@ -390,8 +391,7 @@ sys_munmap (int mapping)
 
   while(i < map->page_cnt)
   {
-    struct page *p = page_for_addr(itr_addr);
-    page_deallocate(p);
+    page_deallocate(itr_addr);
     i++;
   }
   return;
