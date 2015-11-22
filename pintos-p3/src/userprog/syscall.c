@@ -520,11 +520,25 @@ sys_exit (int status)
   }
 
   /* deallocate / unmap pages from mmap'd files */
-  // while(!list_empty(&cur->maps))
-  // {
-  //   struct mapping *map = list_entry(list_begin(&cur->maps), struct mapping, elem);
-  //   sys_munmap (map->handle);
-  // }
+  lock_acquire(&t->map_lock);
+  while(!list_empty(&cur->maps))
+  {
+    struct mapping *map = list_entry(list_pop_front(&cur->maps), struct mapping, elem);
+
+    void *itr_addr = map->base;
+    int i = 0;
+
+    while(i < map->page_cnt)
+    {
+      page_deallocate(itr_addr);
+      itr_addr += PGSIZE;
+      i++;
+    }
+    
+    file_close(map->file);
+    free(map);
+  }
+  lock_release(&t->map_lock);
   
   printf ("%s: exit(%d)\n", cur->name, status);
   thread_exit();
