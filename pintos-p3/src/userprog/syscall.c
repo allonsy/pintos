@@ -525,16 +525,19 @@ sys_exit (int status)
 
     /* not sure we need to do the page deallocation here, going to add it
        to thread_exit */
-    void *itr_addr = map->base;
-    int i = 0;
+    if(map != NULL)
+    {  
+      void *itr_addr = map->base;
+      int i = 0;
 
-    while(i < map->page_cnt)
-    {
-      page_deallocate(itr_addr);
-      i++;
+      while(i < map->page_cnt)
+      {
+        page_deallocate(itr_addr);
+        i++;
+      }
+      list_remove(&map->elem);
+      free(map);
     }
-    list_remove(&map->elem);
-    free(map);
   }
   lock_release(&cur->map_lock);
   
