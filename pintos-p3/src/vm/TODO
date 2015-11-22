@@ -1,5 +1,4 @@
 I think these are in the correct order:
 
-add basics of the page.[hc] infrastructure
-combine them with frame.[hc] infrastructure
-replace process.c page allocation from frame.[hc] fcns to page.[hc] functions
+ADD mapping removal to exit by exception. page exit is already there, since except exit calls thread exit.
+

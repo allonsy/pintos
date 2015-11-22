@@ -68,6 +68,21 @@ static bool do_page_in (struct page *p)
 void 
 page_exit (void)  
 {
+  struct thread *t = thread_current ();
+  struct hash_iterator itr;
+  struct page *p;
+
+  lock_acquire(&t->supp_pt_lock);
+  while(!hash_empty(&t->supp_pt))
+  {
+    /* have to initialize the iterator every time, since
+      page_deallocate deletes an element from the hash table,
+      which invalidates the iterator */
+    hash_first(&itr, &t->supp_pt);
+    p = hash_entry(itr.elem, struct page, hash_elem);
+    page_deallocate(p->addr);
+  }
+  lock_release(&t->supp_pt_lock);
   return;
 }
 
@@ -238,6 +253,8 @@ page_deallocate (void *vaddr)
     {
       free(p->filename);
     }
+
+    pagedir_clear_page (p->thread->pagedir, p->addr);
     
     frame_free(p->frame);
     free(p);
