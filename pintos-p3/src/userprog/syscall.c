@@ -520,7 +520,7 @@ sys_exit (int status)
   }
 
   /* deallocate / unmap pages from mmap'd files */
-  lock_acquire(&t->map_lock);
+  lock_acquire(&cur->map_lock);
   while(!list_empty(&cur->maps))
   {
     struct mapping *map = list_entry(list_pop_front(&cur->maps), struct mapping, elem);
@@ -538,7 +538,7 @@ sys_exit (int status)
     file_close(map->file);
     free(map);
   }
-  lock_release(&t->map_lock);
+  lock_release(&cur->map_lock);
   
   printf ("%s: exit(%d)\n", cur->name, status);
   thread_exit();
