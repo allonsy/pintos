@@ -403,6 +403,7 @@ sys_munmap (int mapping)
   lock_acquire(&t->map_lock);
   list_remove(&map->elem);
   lock_release(&t->map_lock);
+  file_close(map->file);
   free(map);
   return;
 }
@@ -519,11 +520,11 @@ sys_exit (int status)
   }
 
   /* deallocate / unmap pages from mmap'd files */
-  while(!list_empty(&cur->maps))
-  {
-    struct mapping *map = list_entry(list_begin(&cur->maps), struct mapping, elem);
-    sys_munmap (map->handle);
-  }
+  // while(!list_empty(&cur->maps))
+  // {
+  //   struct mapping *map = list_entry(list_begin(&cur->maps), struct mapping, elem);
+  //   sys_munmap (map->handle);
+  // }
   
   printf ("%s: exit(%d)\n", cur->name, status);
   thread_exit();
