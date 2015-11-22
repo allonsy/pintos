@@ -263,7 +263,7 @@ static bool vm_setup_stack (void **esp, char **arglist, int argc);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
-                          bool writable, char *filename);
+                          bool writable);
 
 
 
@@ -293,7 +293,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
   memcpy(file_name_cpy, file_name, strlen(file_name)+1);
   char *file_exec_name = strtok_r(file_name_cpy, " ", &tempy);
 
+  lock_acquire(&filesys_lock);
   file = filesys_open (file_exec_name);
+  lock_release(&filesys_lock);
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_exec_name);
@@ -363,7 +365,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
                   zero_bytes = ROUND_UP (page_offset + phdr.p_memsz, PGSIZE);
                 }
               if (!vm_load_segment (file, file_page, (void *) mem_page,
-                                 read_bytes, zero_bytes, writable, file_exec_name))
+                                 read_bytes, zero_bytes, writable))
                 goto done;
               }
           else
@@ -486,7 +488,7 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
   */
 static bool
 vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
-              uint32_t read_bytes, uint32_t zero_bytes, bool writable, char *filename) 
+              uint32_t read_bytes, uint32_t zero_bytes, bool writable) 
 {
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
@@ -519,8 +521,6 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
       if(page_read_bytes > 0)
       {
         p->file = rfile;
-        p->filename= malloc(strlen(filename)+1);    
-        strlcpy(p->filename, filename, strlen(filename)+1);
         p->file_offset = offset_tracker;
         p->file_bytes = page_read_bytes;
         p->private = true; /* SINCE STUFF LOADED HERE IS NOT MMAP'D? PROBABLY UP FOR DEBATE */
