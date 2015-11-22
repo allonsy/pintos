@@ -330,6 +330,7 @@ sys_mmap (int handle, void *addr)
       return -1;
     }
     p->file = NULL;
+    p->frame = NULL;
     if(page_read_bytes > 0)
     {
       p->file = rfile;
@@ -347,7 +348,7 @@ sys_mmap (int handle, void *addr)
 
   
   struct mapping *map;
-  map= malloc(sizeof *map);
+  map = malloc(sizeof *map);
 
   if(map == NULL)
   {
@@ -395,13 +396,14 @@ sys_munmap (int mapping)
 
   while(i < map->page_cnt)
   {
-    struct page *p = page_for_addr(itr_addr);
-    page_deallocate(p);
+    page_deallocate(itr_addr);
+    itr_addr += PGSIZE;
     i++;
   }
   lock_acquire(&t->map_lock);
   list_remove(&map->elem);
   lock_release(&t->map_lock);
+  file_close(map->file);
   free(map);
   return;
 }
@@ -521,20 +523,19 @@ sys_exit (int status)
   lock_acquire(&cur->map_lock);
   while(!list_empty(&cur->maps))
   {
+    struct mapping *map = list_entry(list_pop_front(&cur->maps), struct mapping, elem);
+
+    void *itr_addr = map->base;
+    int i = 0;
+
+    while(i < map->page_cnt)
+    {
+      page_deallocate(itr_addr);
+      itr_addr += PGSIZE;
+      i++;
+    }
     
-    struct mapping *map = list_pop_front(&cur->maps);
-
-    /* not sure we need to do the page deallocation here, going to add it
-       to thread_exit */
-    // void *itr_addr = map->base;
-    // int i = 0;
-
-    // while(i < map->page_cnt)
-    // {
-    //   page_deallocate(itr_addr);
-    //   i++;
-    // }
-    list_remove(&map->elem);
+    file_close(map->file);
     free(map);
   }
   lock_release(&cur->map_lock);
