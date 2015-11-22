@@ -381,6 +381,7 @@ sys_mmap (int handle, void *addr)
 void
 sys_munmap (int mapping)
 {
+  struct thread *t = thread_current ();
   struct mapping *map = lookup_mapping(mapping);
 
   if(map == NULL)
@@ -389,11 +390,16 @@ sys_munmap (int mapping)
   void *itr_addr = map->base;
   int i = 0;
 
+
   while(i < map->page_cnt)
   {
     page_deallocate(itr_addr);
     i++;
   }
+  lock_acquire(&t->map_lock);
+  list_remove(&map->elem);
+  lock_release(&t->map_lock);
+  free(map);
   return;
 }
 
@@ -508,6 +514,28 @@ sys_exit (int status)
     }
     lock_release(&cur->parent->child_list_lock);
   }
+
+  /* deallocate / unmap pages from mmap'd files */
+  lock_acquire(&cur->map_lock);
+  while(!list_empty(&cur->maps))
+  {
+    
+    struct mapping *map = list_pop_front(&cur->maps);
+
+    /* not sure we need to do the page deallocation here, going to add it
+       to thread_exit */
+    // void *itr_addr = map->base;
+    // int i = 0;
+
+    // while(i < map->page_cnt)
+    // {
+    //   page_deallocate(itr_addr);
+    //   i++;
+    // }
+    list_remove(&map->elem);
+    free(map);
+  }
+  lock_release(&cur->map_lock);
   
   printf ("%s: exit(%d)\n", cur->name, status);
   thread_exit();

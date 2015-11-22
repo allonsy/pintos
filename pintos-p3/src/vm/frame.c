@@ -113,7 +113,7 @@ try_frame_alloc_and_lock (struct page *page)
     lock_release(&scan_lock);
     return f;
   }
-  else
+  else //catch all swap case
   {
     if(!swap_out(p))
     {
