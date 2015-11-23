@@ -6,6 +6,7 @@
 #include "userprog/pagedir.h"
 #include "vm/page.h"
 #include "threads/vaddr.h"
+#include "vm/swap.h"
 
 
 static struct frame *frames;
@@ -45,6 +46,9 @@ frame_init (void)
 struct frame*
 try_frame_alloc_and_lock (struct page *page)
 {
+
+  printf("try_frame_alloc_and_lock: entered\n");
+
   int i;
   struct frame *f;
   //bool success;
@@ -65,24 +69,40 @@ try_frame_alloc_and_lock (struct page *page)
           f->page = page;
           page->frame = f;
           lock_release(&scan_lock);
+          printf("try_frame_alloc_and_lock: exiting empty frame case\n");
           return f;
         }
       }
     }
   }
 
+  printf("try_frame_alloc_and_lock: after first for loop\n");
+
   /* at this point, we believe that all frames are held */
 
   /* f is locked when this returns */
   f = perform_LRU();
+  printf("try_frame_alloc_and_lock: after LRU\n");
+
   ASSERT(f != NULL);
   struct page *p = f->page;
+  
+  if(p == NULL)
+    return f;
+
+    printf("try_frame_alloc_and_lock: past assertions, about to try second print\n");
   /* p should not be NULL since we held the scan lock above
     and no page had NULL */
+
+  printf("try_frame_alloc_and_lock: p: %p f: %p p->thread: %p &p->thread->pagedir %p p->thread->pagedir %p\n", p, f, p->thread, &p->thread->pagedir, p->thread->pagedir);
   if(p->thread->pagedir && pagedir_is_dirty(p->thread->pagedir, p->addr))
   {
+
+    printf("try_frame_alloc_and_lock: after pagedir_is_dirty\n");
     if(p->private)
     {
+
+      printf("try_frame_alloc_and_lock: entered non-mmap case\n");
       if(!swap_out(p))
       {
         PANIC("try_frame_alloc_and_lock: SWAP SPACE FULL");
@@ -92,10 +112,12 @@ try_frame_alloc_and_lock (struct page *page)
       f->page = page;
       page->frame = f;
       lock_release(&scan_lock);
+      printf("try_frame_alloc_and_lock: exiting non-mmap case\n");
       return f;
     }
     else // mmap case
     {
+      printf("try_frame_alloc_and_lock: entered mmap case\n");
       /* if filesize isn't fixed, this could be problematic */
       /* could also be problematic if we can't get the file thing to work like vm segment had */
       file_write_at (p->file, p->frame->base, p->file_bytes, p->file_offset); 
@@ -104,11 +126,14 @@ try_frame_alloc_and_lock (struct page *page)
       f->page = page;
       page->frame = f;
       lock_release(&scan_lock);
+      printf("try_frame_alloc_and_lock: exiting mmap case\n");
       return f;
     }
   }
   else if (p->read_only && p->file != NULL)
   {
+    printf("try_frame_alloc_and_lock: after pagedir_is_dirty\n");
+    printf("try_frame_alloc_and_lock: entered read_only from file case\n");
     p->frame == NULL; /* safe to do since scan lock and frame lock are held */
     if(p->thread->pagedir)
     {
@@ -121,10 +146,14 @@ try_frame_alloc_and_lock (struct page *page)
     f->page = page;
     page->frame = f;
     lock_release(&scan_lock);
+    printf("try_frame_alloc_and_lock: exiting read_only from file case\n");
     return f;
   }
   else
   {
+    printf("try_frame_alloc_and_lock: after pagedir_is_dirty\n");
+    printf("try_frame_alloc_and_lock: entered catch-all case\n");
+
     if(!swap_out(p))
     {
       PANIC("try_frame_alloc_and_lock: SWAP SPACE FULL");
@@ -133,6 +162,7 @@ try_frame_alloc_and_lock (struct page *page)
     f->page = page;
     page->frame = f;
     lock_release(&scan_lock);
+    printf("try_frame_alloc_and_lock: exiting catch-all case\n");
     return f;
   }
   printf("hih\n");
@@ -191,18 +221,34 @@ struct frame *perform_LRU()
     struct page *p = frames[hand].page;
     if(p==NULL || p->thread->pagedir==NULL/* || is_kernel_vaddr(p->addr) */)
     {
+      //printf("LRU: page is null case\n");
       hand++;
       if(hand >= frame_cnt)
       {
         hand = 0;
       }
+      if(hand == 0)
+	{
+	  frame_lock(&frames[frame_cnt-1]);
+	  return &frames[frame_cnt-1];
+	}
+      else
+	{
+	  frame_lock(&frames[hand-1]);
+	  return &frames[hand-1];
+	}
+      
       continue;
     }
 
     uint32_t *cur_pagedir = p->thread->pagedir;
     if(cur_pagedir == NULL)
     {
+      /* assumpetion here is htat an invalid pagedir 
+	 means that the page can be freed */
+      //printf("LRU: pagedir is null\n");
       ret = &frames[hand];
+      ret->page = NULL;
     }
     else if(!pagedir_is_accessed(cur_pagedir, p->addr))
     {

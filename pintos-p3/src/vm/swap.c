@@ -70,6 +70,7 @@ swap_init (void)
 bool
 swap_in (struct page *p)
 {
+  printf("swap_in: entered\n");
   int i;
 
   /* this lock on the outside since it has more contexts
@@ -90,6 +91,7 @@ swap_in (struct page *p)
   p->swap = false;
   /* NOTE, we do not need to set the pagedir entry here, as that is handled in page_in */
 
+  printf("swap_in: exiting\n");
   return true;
 }
 
@@ -120,6 +122,8 @@ swap_out (struct page *p)
 
   size_t bit_idx;
   int i;
+
+  printf("swap_out: entered\n");
 
   /* this lock on the outside since it has more contexts
     in which it can be locked */
@@ -160,6 +164,7 @@ swap_out (struct page *p)
   if(bit_idx == BITMAP_ERROR)
   {
     frame_unlock(p->frame); 
+    printf("swap_out: exiting with no swap space available\n");
     return false;
   }
 
@@ -186,6 +191,7 @@ swap_out (struct page *p)
   }
   p->swap = true;
 
+  printf("swap_out: exiting\n");
   return true;
 }
 
