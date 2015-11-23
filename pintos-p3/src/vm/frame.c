@@ -86,7 +86,9 @@ try_frame_alloc_and_lock (struct page *page)
 
   ASSERT(f != NULL);
   struct page *p = f->page;
-  ASSERT(p != NULL)
+  
+  if(p == NULL)
+    return f;
 
     printf("try_frame_alloc_and_lock: past assertions, about to try second print\n");
   /* p should not be NULL since we held the scan lock above
@@ -214,20 +216,34 @@ struct frame *perform_LRU()
     struct page *p = frames[hand].page;
     if(p==NULL /* || is_kernel_vaddr(p->addr) */)
     {
-      printf("LRU: page is null case\n");
+      //printf("LRU: page is null case\n");
       hand++;
       if(hand >= frame_cnt)
       {
         hand = 0;
       }
+      if(hand == 0)
+	{
+	  frame_lock(&frames[frame_cnt-1]);
+	  return &frames[frame_cnt-1];
+	}
+      else
+	{
+	  frame_lock(&frames[hand-1]);
+	  return &frames[hand-1];
+	}
+      
       continue;
     }
 
     uint32_t *cur_pagedir = p->thread->pagedir;
     if(cur_pagedir == NULL)
     {
-      printf("LRU: pagedir is null\n");
+      /* assumpetion here is htat an invalid pagedir 
+	 means that the page can be freed */
+      //printf("LRU: pagedir is null\n");
       ret = &frames[hand];
+      ret->page = NULL;
     }
     else if(!pagedir_is_accessed(cur_pagedir, p->addr))
     {

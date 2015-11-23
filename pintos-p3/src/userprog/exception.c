@@ -223,7 +223,7 @@ page_fault (struct intr_frame *f)
       //printf("page_fault: fault_addr %p\n", fault_addr);
       if(user)
       {
-        PANIC("page_fault: user faulting on %p with frame address %p\n", fault_addr, f);
+        //PANIC("page_fault: user faulting on %p with frame address %p\n", fault_addr, f);
         except_exit();
       }
       else
