@@ -418,9 +418,12 @@ sys_munmap (int mapping)
 static int
 sys_exec (const char *ufile)
 {
+
+  //printf("sys_exec: entered\n");
   char *kfile = copy_in_string (ufile);
   tid_t pid = process_execute (kfile);
-  //free(kfile);
+  //printf("sys_exec: after execute\n");
+  free(kfile);
   if(pid == TID_ERROR)
     return -1;
   else
@@ -432,6 +435,7 @@ sys_exec (const char *ufile)
     for(e=list_begin(&cur->children); e != list_end(&cur->children); e= list_next(e))
     {
       struct child *chld = list_entry(e, struct child, elem);
+      //printf("sys_exec: child ptr: %p exec_status: %p\n", chld, chld->exec_status);
       if(chld->pid == pid)
       {
         if(chld->exec_status != NULL)
@@ -439,8 +443,11 @@ sys_exec (const char *ufile)
           pid = *chld->exec_status;
         }
       }
+      //printf("sys_exec: done dereferencing\n");
     }
+    //printf("sys_exec: after for loop\n");
     lock_release(&cur->child_list_lock);
+    //printf("sys_exec: exiting\n");
     return (int) pid;
   }
 }
@@ -535,8 +542,8 @@ sys_exit (int status)
       i++;
     }
     
-    //file_close(map->file);
-    //free(map);
+    file_close(map->file);
+    free(map);
   }
   lock_release(&cur->map_lock);
   

@@ -46,6 +46,9 @@ frame_init (void)
 struct frame*
 try_frame_alloc_and_lock (struct page *page)
 {
+
+  printf("try_frame_alloc_and_lock: entered\n");
+
   int i;
   struct frame *f;
   //bool success;
@@ -66,24 +69,36 @@ try_frame_alloc_and_lock (struct page *page)
           f->page = page;
           page->frame = f;
           lock_release(&scan_lock);
+          printf("try_frame_alloc_and_lock: exiting empty frame case\n");
           return f;
         }
       }
     }
   }
 
+  printf("try_frame_alloc_and_lock: after first for loop\n");
+
   /* at this point, we believe that all frames are held */
 
   /* f is locked when this returns */
   f = perform_LRU();
+  printf("try_frame_alloc_and_lock: after LRU\n");
+
   ASSERT(f != NULL);
   struct page *p = f->page;
+  ASSERT(p != NULL)
   /* p should not be NULL since we held the scan lock above
     and no page had NULL */
+
+  printf("try_frame_alloc_and_lock: p: %p f: %p p->thread: %p\n", p, f, p->thread);
   if(pagedir_is_dirty(p->thread->pagedir, p->addr))
   {
+
+    printf("try_frame_alloc_and_lock: after pagedir_is_dirty\n");
     if(p->private)
     {
+
+      printf("try_frame_alloc_and_lock: entered non-mmap case\n");
       if(!swap_out(p))
       {
         PANIC("try_frame_alloc_and_lock: SWAP SPACE FULL");
@@ -93,10 +108,12 @@ try_frame_alloc_and_lock (struct page *page)
       f->page = page;
       page->frame = f;
       lock_release(&scan_lock);
+      printf("try_frame_alloc_and_lock: exiting non-mmap case\n");
       return f;
     }
     else // mmap case
     {
+      printf("try_frame_alloc_and_lock: entered mmap case\n");
       /* if filesize isn't fixed, this could be problematic */
       /* could also be problematic if we can't get the file thing to work like vm segment had */
       file_write_at (p->file, p->frame->base, p->file_bytes, p->file_offset); 
@@ -105,20 +122,27 @@ try_frame_alloc_and_lock (struct page *page)
       f->page = page;
       page->frame = f;
       lock_release(&scan_lock);
+      printf("try_frame_alloc_and_lock: exiting mmap case\n");
       return f;
     }
   }
   else if (p->read_only && p->file != NULL)
   {
+    printf("try_frame_alloc_and_lock: after pagedir_is_dirty\n");
+    printf("try_frame_alloc_and_lock: entered read_only from file case\n");
     p->frame == NULL; /* safe to do since scan lock and frame lock are held */
     pagedir_clear_page (p->thread->pagedir, p->addr);
     f->page = page;
     page->frame = f;
     lock_release(&scan_lock);
+    printf("try_frame_alloc_and_lock: exiting read_only from file case\n");
     return f;
   }
   else
   {
+    printf("try_frame_alloc_and_lock: after pagedir_is_dirty\n");
+    printf("try_frame_alloc_and_lock: entered catch-all case\n");
+
     if(!swap_out(p))
     {
       PANIC("try_frame_alloc_and_lock: SWAP SPACE FULL");
@@ -127,6 +151,7 @@ try_frame_alloc_and_lock (struct page *page)
     f->page = page;
     page->frame = f;
     lock_release(&scan_lock);
+    printf("try_frame_alloc_and_lock: exiting catch-all case\n");
     return f;
   }
 

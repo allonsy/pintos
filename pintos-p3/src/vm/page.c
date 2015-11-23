@@ -94,6 +94,7 @@ page_exit (void)
 bool 
 page_in (void *fault_addr) 
 {
+  //printf("page_in: entered with fault_addr %p\n", fault_addr);
   struct page *p = page_for_addr (fault_addr);
   if(p == NULL)
   {
@@ -101,11 +102,17 @@ page_in (void *fault_addr)
   }
 
 
+
   /* try_frame_alloc_and_lock will only return NULL
   if EVERY frame is being used AND the swap space is full
   AND none of the frames are read-only, since those can be read in
   from the file again */
+
+  //printf("page_in: after page_for_addr and before try_frame_alloc_and_lock, fault_addr: %p\n", fault_addr);
+
   struct frame *f = try_frame_alloc_and_lock (p);
+
+  //printf("page_in: after try_frame_alloc_and_lock with frame addr %p\n", f);
   
   if(f != NULL)
   {
@@ -139,6 +146,7 @@ page_in (void *fault_addr)
     if(pagedir_set_page (p->thread->pagedir, p->addr, f->base, !p->read_only))
     {
       frame_unlock(f);
+      //printf("page_in: exiting\n");
       return true;
     }
     else
@@ -170,6 +178,7 @@ struct page *
 page_allocate (void *vaddr, bool read_only) 
 {
 
+  //printf("page_allocate: entered\n");
   if(!is_user_vaddr(vaddr))
   {
     PANIC("tried to allocate a page for a kernel address %p", vaddr);
@@ -208,11 +217,13 @@ page_allocate (void *vaddr, bool read_only)
   // note hash_insert returns null on success
   if(!success)
   {
+    //printf("page_allocate: exiting\n");
     return p;
   }
   else 
   {
     free(p);
+    //printf("page_allocate: exiting\n");
     return NULL;
   }
 }
@@ -220,6 +231,7 @@ page_allocate (void *vaddr, bool read_only)
 void 
 page_deallocate (void *vaddr) 
 {
+  //printf("page_deallocate: entered\n");
   struct page *p;
   struct thread *t = thread_current ();
   if((p = page_for_addr (vaddr)) != NULL)
@@ -247,6 +259,7 @@ page_deallocate (void *vaddr)
     frame_free(p->frame);
     free(p);
   }
+  //printf("page_deallocate: exiting\n");
 }
 
 /* Returns a hash value for page p. 
