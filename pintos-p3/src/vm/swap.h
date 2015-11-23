@@ -9,6 +9,7 @@
 void swap_init(void);
 bool swap_in (struct page *p);
 bool swap_out(struct page *p);
+bool remove_from_swap (struct page *p);
 
 
 #endif 

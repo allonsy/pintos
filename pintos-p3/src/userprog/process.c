@@ -20,6 +20,7 @@
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
 #include "vm/page.h"
+#include "lib/kernel/hash.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -159,6 +160,26 @@ process_exit (void)
     free(chld);
   }
   lock_release(&cur->child_list_lock);
+
+  lock_acquire(&cur->supp_pt_lock);
+  printf("hash size is: %d\n", hash_size(&cur->supp_pt));
+  struct hash_iterator i;
+  struct hash_elem *cond;
+  hash_first(&i, &cur->supp_pt);
+  cond = hash_next(&i);
+  while(cond)
+  {
+    printf("clearing\n");
+    struct page *p = hash_entry(hash_cur(&i), struct page, hash_elem);
+    cond=hash_next(&i);
+    if(p->swap)
+    {
+      remove_from_swap(p);
+    }
+    page_deallocate(p);
+  }
+
+  lock_release(&cur->supp_pt_lock);
 
   uint32_t *pd;
 
@@ -511,7 +532,6 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
          data will be loaded lazily by the page fault handler calling
          page_in */
       struct page *p = page_allocate (upage, !writable);
-      printf("allocating for addr %p\n", upage);
       //printf("allocating page for addr: %p\n", p->addr);
       if(p == NULL)
       {
@@ -532,6 +552,7 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
     }
+  printf("begin hash size is:%d\n", hash_size(&thread_current()->supp_pt));
   return true;
 }
 

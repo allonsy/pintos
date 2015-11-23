@@ -114,6 +114,10 @@ try_frame_alloc_and_lock (struct page *page)
     {
       pagedir_clear_page (p->thread->pagedir, p->addr);
     }
+    else
+    {
+      printf("huh\n");
+    }
     f->page = page;
     page->frame = f;
     lock_release(&scan_lock);
@@ -131,6 +135,7 @@ try_frame_alloc_and_lock (struct page *page)
     lock_release(&scan_lock);
     return f;
   }
+  printf("hih\n");
 
   lock_release(&f->lock);
 
@@ -184,7 +189,7 @@ struct frame *perform_LRU()
   {
     //printf("loop\n");
     struct page *p = frames[hand].page;
-    if(p==NULL /* || is_kernel_vaddr(p->addr) */)
+    if(p==NULL || p->thread->pagedir==NULL/* || is_kernel_vaddr(p->addr) */)
     {
       hand++;
       if(hand >= frame_cnt)

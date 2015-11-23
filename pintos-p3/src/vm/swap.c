@@ -93,6 +93,22 @@ swap_in (struct page *p)
   return true;
 }
 
+bool remove_from_swap(struct page *p)
+{
+
+  size_t bit_idx = p->sector / PAGE_SECTORS;
+
+  lock_acquire(&swap_lock);
+  bitmap_reset (swap_bitmap, bit_idx);
+  idx_first_free = bit_idx < idx_first_free ? bit_idx : idx_first_free;
+  lock_release(&swap_lock);
+  p->sector = -1;
+  p->swap = false;
+  /* NOTE, we do not need to set the pagedir entry here, as that is handled in page_in */
+
+  return true;
+}
+
 /* this function will be called from try_frame_alloc_and_lock.
   it is solely for the actual eviction of a page, not the
   algorithm that finds it 
@@ -158,10 +174,15 @@ swap_out (struct page *p)
   }
 
   p->sector = start;
+  p->frame->page = NULL;
   p->frame = NULL; /* safe since we are calling this with frame lock and scan lock held */
   if(p->thread->pagedir)
   {
     pagedir_clear_page (p->thread->pagedir, p->addr);
+  }
+  else
+  {
+    printf("Huh %p\n", p->addr);
   }
   p->swap = true;
 
