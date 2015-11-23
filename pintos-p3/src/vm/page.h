@@ -32,7 +32,6 @@ struct page
          true to write back to swap. */
   bool swap;                  /* is the frame in swap currently*/
   struct file *file;          /* File. */
-  char *filename;
   off_t file_offset;          /* Offset in file. */
   off_t file_bytes;           /* Bytes to read/write, 1...PGSIZE. */
 };

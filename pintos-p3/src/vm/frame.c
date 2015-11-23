@@ -75,6 +75,7 @@ try_frame_alloc_and_lock (struct page *page)
 
   /* f is locked when this returns */
   f = perform_LRU();
+  ASSERT(f != NULL);
   struct page *p = f->page;
   /* p should not be NULL since we held the scan lock above
     and no page had NULL */
@@ -183,7 +184,7 @@ struct frame *perform_LRU()
   {
     //printf("loop\n");
     struct page *p = frames[hand].page;
-    if(p==NULL || is_kernel_vaddr(p->addr))
+    if(p==NULL /* || is_kernel_vaddr(p->addr) */)
     {
       hand++;
       if(hand >= frame_cnt)
@@ -200,16 +201,16 @@ struct frame *perform_LRU()
     }
     else if(!pagedir_is_accessed(cur_pagedir, p->addr))
     {
-      //if(!pagedir_is_dirty(cur_pagedir, p->addr))
-      //{
-        ret = &frames[hand];
-      //}
-      //else
-      //{
-      //  if(oneshot)
-      //  {
-      //    ret = &frames[hand];
-       // }
+      // if(!pagedir_is_dirty(cur_pagedir, p->addr))
+      // {
+       ret = &frames[hand];
+     //  }
+     //  else
+     //  {
+     //   if(oneshot)
+     //   {
+     //     ret = &frames[hand];
+     //   }
      // }
     }
     else
@@ -234,6 +235,7 @@ struct frame *perform_LRU()
       }
     }
   }
+
   if(ret != NULL && !lock_held_by_current_thread(&ret->lock))
   {
     frame_lock(ret);
