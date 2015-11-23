@@ -292,8 +292,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
   char *tempy;
   memcpy(file_name_cpy, file_name, strlen(file_name)+1);
   char *file_exec_name = strtok_r(file_name_cpy, " ", &tempy);
-
+  lock_acquire(&filesys_lock);
   file = filesys_open (file_exec_name);
+  lock_release(&filesys_lock);
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_exec_name);
@@ -509,7 +510,7 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
          data will be loaded lazily by the page fault handler calling
          page_in */
       struct page *p = page_allocate (upage, !writable);
-      
+      printf("allocating for addr %p\n", upage);
       //printf("allocating page for addr: %p\n", p->addr);
       if(p == NULL)
       {
@@ -532,7 +533,6 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
     }
-
   return true;
 }
 

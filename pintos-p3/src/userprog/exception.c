@@ -206,7 +206,7 @@ page_fault (struct intr_frame *f)
         t->stack = f->esp;
         stack_ptr_swizzle = t->stack;
       }
-      if(fault_addr >= stack_ptr_swizzle-32)
+      if(fault_addr >= stack_ptr_swizzle-32 || (page_for_addr(pg_round_down(fault_addr)-PGSIZE) && !is_kernel_vaddr(fault_addr)))
       {
         uint32_t *newPageAddr = pg_round_down(fault_addr);
         struct page *p = page_allocate(fault_addr, 0);

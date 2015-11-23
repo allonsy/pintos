@@ -159,8 +159,10 @@ swap_out (struct page *p)
 
   p->sector = start;
   p->frame = NULL; /* safe since we are calling this with frame lock and scan lock held */
-
-  pagedir_clear_page (p->thread->pagedir, p->addr);
+  if(p->thread->pagedir)
+  {
+    pagedir_clear_page (p->thread->pagedir, p->addr);
+  }
   p->swap = true;
 
   return true;
