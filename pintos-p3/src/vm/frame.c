@@ -91,7 +91,7 @@ try_frame_alloc_and_lock (struct page *page)
     and no page had NULL */
 
   printf("try_frame_alloc_and_lock: p: %p f: %p p->thread: %p\n", p, f, p->thread);
-  if(pagedir_is_dirty(p->thread->pagedir, p->addr))
+  if(p->thread->pagedir && pagedir_is_dirty(p->thread->pagedir, p->addr))
   {
 
     printf("try_frame_alloc_and_lock: after pagedir_is_dirty\n");
@@ -131,7 +131,10 @@ try_frame_alloc_and_lock (struct page *page)
     printf("try_frame_alloc_and_lock: after pagedir_is_dirty\n");
     printf("try_frame_alloc_and_lock: entered read_only from file case\n");
     p->frame == NULL; /* safe to do since scan lock and frame lock are held */
-    pagedir_clear_page (p->thread->pagedir, p->addr);
+    if(p->thread->pagedir)
+    {
+      pagedir_clear_page (p->thread->pagedir, p->addr);
+    }
     f->page = page;
     page->frame = f;
     lock_release(&scan_lock);
@@ -218,8 +221,11 @@ struct frame *perform_LRU()
     }
 
     uint32_t *cur_pagedir = p->thread->pagedir;
-    //printf("acc: %ld dirty: %ld\n", pagedir_is_accessed(cur_pagedir, p->addr), pagedir_is_dirty(cur_pagedir, p->addr));
-    if(!pagedir_is_accessed(cur_pagedir, p->addr))
+    if(cur_pagedir == NULL)
+    {
+      ret = &frames[hand];
+    }
+    else if(!pagedir_is_accessed(cur_pagedir, p->addr))
     {
       // if(!pagedir_is_dirty(cur_pagedir, p->addr))
       // {

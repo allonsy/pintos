@@ -253,7 +253,9 @@ page_deallocate (void *vaddr)
 
     if(!p->private && p->frame && pagedir_is_dirty(t->pagedir, p->addr))
     {
+      lock_acquire(&filesys_lock);
       file_write_at (p->file, p->frame->base, p->file_bytes, p->file_offset);
+      lock_release(&filesys_lock);
     }
     pagedir_clear_page (p->thread->pagedir, p->addr);
     frame_free(p->frame);

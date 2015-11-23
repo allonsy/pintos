@@ -206,6 +206,8 @@ page_fault (struct intr_frame *f)
         t->stack = f->esp;
         stack_ptr_swizzle = t->stack;
       }
+
+      /* if(fault_addr >= stack_ptr_swizzle-32 || (page_for_addr(pg_round_down(fault_addr)-PGSIZE) && !is_kernel_vaddr(fault_addr))) */
       if(fault_addr >= stack_ptr_swizzle-32 && fault_addr < PHYS_BASE)
       {
         struct page *p = page_allocate(fault_addr, 0);

@@ -286,12 +286,14 @@ sys_mmap (int handle, void *addr)
   {
     return -1;
   }
-
+  lock_acquire(&filesys_lock);
   if((rfile= file_reopen(fds->fptr)) == NULL)
   {
     //PANIC("sys_mmap: failed to open file");
+    lock_release(&filesys_lock);
     return -1;
   }
+  lock_release(&filesys_lock);
 
   if((len = file_length(rfile)) == 0)
   {
@@ -541,8 +543,9 @@ sys_exit (int status)
       itr_addr += PGSIZE;
       i++;
     }
-    
+    lock_acquire(&filesys_lock);
     file_close(map->file);
+    lock_release(&filesys_lock);
     free(map);
   }
   lock_release(&cur->map_lock);
