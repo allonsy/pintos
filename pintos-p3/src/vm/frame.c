@@ -223,6 +223,7 @@ struct frame *perform_LRU()
     uint32_t *cur_pagedir = p->thread->pagedir;
     if(cur_pagedir == NULL)
     {
+      printf("LRU: pagedir is null\n")
       ret = &frames[hand];
     }
     else if(!pagedir_is_accessed(cur_pagedir, p->addr))
