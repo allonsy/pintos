@@ -420,7 +420,7 @@ sys_exec (const char *ufile)
 {
   char *kfile = copy_in_string (ufile);
   tid_t pid = process_execute (kfile);
-  free(kfile);
+  //free(kfile);
   if(pid == TID_ERROR)
     return -1;
   else
@@ -535,8 +535,8 @@ sys_exit (int status)
       i++;
     }
     
-    file_close(map->file);
-    free(map);
+    //file_close(map->file);
+    //free(map);
   }
   lock_release(&cur->map_lock);
   

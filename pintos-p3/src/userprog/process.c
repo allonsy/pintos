@@ -137,8 +137,8 @@ process_exit (void)
   while(!list_empty(&cur->files))
   {
     struct fdesc *fds = list_entry(list_pop_front(&cur->files), struct fdesc, elem);
-    free(fds->fptr);
-    free(fds);
+    //free(fds->fptr);
+    //free(fds);
   }
   lock_acquire(&cur->child_list_lock);
   while(!list_empty(&cur->children))
@@ -150,13 +150,13 @@ process_exit (void)
     }
     else
     {
-      free(chld->status);
+      //free(chld->status);
     }
     if(chld->exec_status)
     {
-      free(chld->exec_status);
+      //free(chld->exec_status);
     }
-    free(chld);
+    //free(chld);
   }
   lock_release(&cur->child_list_lock);
 

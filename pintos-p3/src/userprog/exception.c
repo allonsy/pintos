@@ -206,9 +206,8 @@ page_fault (struct intr_frame *f)
         t->stack = f->esp;
         stack_ptr_swizzle = t->stack;
       }
-      if(fault_addr >= stack_ptr_swizzle-32)
+      if(fault_addr >= stack_ptr_swizzle-32 && fault_addr < PHYS_BASE)
       {
-        uint32_t *newPageAddr = pg_round_down(fault_addr);
         struct page *p = page_allocate(fault_addr, 0);
         p->file = NULL;
         p->read_only = 0;
@@ -219,9 +218,19 @@ page_fault (struct intr_frame *f)
           return;
         }
       }
-      except_exit();
+      //printf("page_fault: fault_addr %p\n", fault_addr);
+      if(user)
+      {
+        PANIC("page_fault: user faulting on %p with frame address %p\n", fault_addr, f);
+        except_exit();
+      }
+      else
+      {
+        PANIC("page_fault: kernel faulting on %p with frame address %p\n", fault_addr, f);
+        except_exit();
+      }
     }
-    if(!page_in(fault_addr))
+    if(is_user_vaddr(fault_addr) && !page_in(fault_addr))
     {
       //PANIC("page_fault: page_in error");
       except_exit ();
@@ -230,18 +239,7 @@ page_fault (struct intr_frame *f)
   }
   else
   {
-    if(user)
-    {
-      //PANIC("page_fault: user tried to write to read only memory");
-      except_exit();
-    }
-    else
-    {
-      except_exit();
-    }
-    return;
+    except_exit();
   }
-
-  PANIC("page_fault: WE SHOULD NOT SEE THIS PANIC, BUT\nkernel page fault on pointer %p, PHYS_BASE: %p, user: %d, not_present: %d", fault_addr, PHYS_BASE, user, not_present);
 }
 

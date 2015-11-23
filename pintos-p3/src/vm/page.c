@@ -135,7 +135,7 @@ page_in (void *fault_addr)
     }
 
 
-    //printf("page_in: about to call pagedir_set_page on address %p", p->addr);
+    //printf("page_in: about to call pagedir_set_page on address %p\n", p->addr);
     if(pagedir_set_page (p->thread->pagedir, p->addr, f->base, !p->read_only))
     {
       frame_unlock(f);
@@ -169,6 +169,11 @@ page_accessed_recently (struct page *p)
 struct page * 
 page_allocate (void *vaddr, bool read_only) 
 {
+
+  if(!is_user_vaddr(vaddr))
+  {
+    PANIC("tried to allocate a page for a kernel address %p", vaddr);
+  }
   struct page *p;  
   struct thread *t = thread_current ();
   p = malloc(sizeof *p);

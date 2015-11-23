@@ -6,6 +6,7 @@
 #include "userprog/pagedir.h"
 #include "vm/page.h"
 #include "threads/vaddr.h"
+#include "vm/swap.h"
 
 
 static struct frame *frames;
