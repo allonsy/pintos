@@ -81,8 +81,8 @@ swap_in (struct page *p)
   }
 
   size_t bit_idx = p->sector / PAGE_SECTORS;
-
   lock_acquire(&swap_lock);
+
   bitmap_reset (swap_bitmap, bit_idx);
   idx_first_free = bit_idx < idx_first_free ? bit_idx : idx_first_free;
   lock_release(&swap_lock);
@@ -107,7 +107,10 @@ swap_out (struct page *p)
 
   /* this lock on the outside since it has more contexts
     in which it can be locked */
-  lock_acquire(&swap_lock);
+  //if(!lock_held_by_current_thread(&swap_lock))
+  //{
+    lock_acquire(&swap_lock);
+    //}
 
   //PANIC("swap_out: past lock acquisition");
 
@@ -143,11 +146,10 @@ swap_out (struct page *p)
   /* no free things in the swap sector */
   if(bit_idx == BITMAP_ERROR)
   {
-    frame_unlock(p->frame); 
+    frame_unlock(p->frame);
+    lock_release(&swap_lock); 
     return false;
   }
-
-  lock_release(&swap_lock);
 
   block_sector_t start = PAGE_SECTORS * bit_idx;
 
@@ -158,10 +160,12 @@ swap_out (struct page *p)
   }
 
   p->sector = start;
+  p->frame->page = NULL;
   p->frame = NULL; /* safe since we are calling this with frame lock and scan lock held */
 
   pagedir_clear_page (p->thread->pagedir, p->addr);
   p->swap = true;
+  lock_release(&swap_lock);
 
   return true;
 }

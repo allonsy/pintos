@@ -174,6 +174,7 @@ page_fault (struct intr_frame *f)
      be assured of reading CR2 before it changed). */
   intr_enable ();
   /* Count page faults. */
+  //printf("page fault at addr %p\n", fault_addr);
   page_fault_cnt++;
   if(fault_addr == 0)
   {

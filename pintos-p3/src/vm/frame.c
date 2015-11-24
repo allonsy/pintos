@@ -194,17 +194,17 @@ struct frame *perform_LRU()
     //printf("acc: %ld dirty: %ld\n", pagedir_is_accessed(cur_pagedir, p->addr), pagedir_is_dirty(cur_pagedir, p->addr));
     if(!pagedir_is_accessed(cur_pagedir, p->addr))
     {
-      //if(!pagedir_is_dirty(cur_pagedir, p->addr))
-      //{
+      if(!pagedir_is_dirty(cur_pagedir, p->addr) || !oneshot)
+      {
         ret = &frames[hand];
-      //}
-      //else
-      //{
-      //  if(oneshot)
-      //  {
-      //    ret = &frames[hand];
-       // }
-     // }
+      }
+      else
+      {
+        if(oneshot)
+        {
+          ret = &frames[hand];
+        }
+      }
     }
     else
     {
@@ -218,14 +218,14 @@ struct frame *perform_LRU()
     }
     if(hand == top)
     {
-      if(didChange)
-      {
-        didChange = 0;
-      }
-      else
-      {
-        oneshot = 1;
-      }
+      //if(didChange)
+      //{
+      //  didChange = 0;
+      //}
+      //else
+      //{
+      oneshot = 1;
+      //}
     }
   }
   if(ret != NULL && !lock_held_by_current_thread(&ret->lock))

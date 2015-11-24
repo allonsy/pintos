@@ -25,7 +25,7 @@ pagedir_create (void)
 /* Destroys page directory PD, freeing all the pages it
    references. */
 void
-pagedir_destroy (uint32_t *pd) 
+pagedir_destroy (uint32_t *pd)
 {
   uint32_t *pde;
 
@@ -33,19 +33,24 @@ pagedir_destroy (uint32_t *pd)
     return;
 
   ASSERT (pd != init_page_dir);
-  for (pde = pd; pde < pd + pd_no (PHYS_BASE); pde++)
-    if (*pde & PTE_P) 
-      {
-        uint32_t *pt = pde_get_pt (*pde);
-        uint32_t *pte;
-        
-        for (pte = pt; pte < pt + PGSIZE / sizeof *pte; pte++)
-          if (*pte & PTE_P) 
-            palloc_free_page (pte_get_page (*pte));
-        palloc_free_page (pt);
-      }
+  for (pde = pd; pde < pd + pd_no (PHYS_BASE); pde++) {
+    if (*pde & PTE_P) {
+
+      // **********************************                                      
+      // NEW: new modification in pagedir_destroy.
+      // the old code clear the pages that pd points to.  
+      // here we just need to free the page that the pd uses.                    
+      // **********************************                                      
+      palloc_free_page (pde_get_pt (*pde));
+
+
+    }
+  }
   palloc_free_page (pd);
 }
+
+
+
 
 /* Returns the address of the page table entry for virtual
    address VADDR in page directory PD.

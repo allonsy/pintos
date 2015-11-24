@@ -74,7 +74,6 @@ page_exit (void)
   struct thread *t = thread_current ();
   struct hash_iterator itr;
   struct page *p;
-
   lock_acquire(&t->supp_pt_lock);
   //printf("page_exit: beginning loop\n");
   while(!hash_empty(&t->supp_pt))
