@@ -156,6 +156,8 @@ kill (struct intr_frame *f)
 static void
 page_fault (struct intr_frame *f) 
 {
+
+
   bool not_present;  /* True: not-present page, false: writing r/o page. */
   bool write;        /* True: access was write, false: access was read. */
   bool user;         /* True: access by user, false: access by kernel. */
@@ -169,6 +171,8 @@ page_fault (struct intr_frame *f)
      [IA32-v3a] 5.15 "Interrupt 14--Page Fault Exception
      (#PF)". */
   asm ("movl %%cr2, %0" : "=r" (fault_addr));
+
+  printf("page_fault: entered with fault address %p\n", fault_addr);
 
   /* Turn interrupts back on (they were only off so that we could
      be assured of reading CR2 before it changed). */
@@ -208,9 +212,7 @@ page_fault (struct intr_frame *f)
       }
       if(fault_addr >= stack_ptr_swizzle-32)
       {
-        uint32_t *newPageAddr = pg_round_down(fault_addr);
-        struct page *p = page_allocate(fault_addr, 0);
-        p->file = NULL;
+        struct page *p = page_allocate(fault_addr, false, PAGET_STACK);
         p->read_only = 0;
         if(p != NULL)
         {
@@ -219,6 +221,7 @@ page_fault (struct intr_frame *f)
           return;
         }
       }
+      //printf("page_fault: general except exit case\n");
       except_exit();
     }
     if(!page_in(fault_addr))
@@ -230,16 +233,8 @@ page_fault (struct intr_frame *f)
   }
   else
   {
-    if(user)
-    {
-      //PANIC("page_fault: user tried to write to read only memory");
-      except_exit();
-    }
-    else
-    {
-      except_exit();
-    }
-    return;
+    printf("page_fault: %s writing to read only memory at %p\n", user ? "user" : "kernel", fault_addr);
+    except_exit();
   }
 
   PANIC("page_fault: WE SHOULD NOT SEE THIS PANIC, BUT\nkernel page fault on pointer %p, PHYS_BASE: %p, user: %d, not_present: %d", fault_addr, PHYS_BASE, user, not_present);

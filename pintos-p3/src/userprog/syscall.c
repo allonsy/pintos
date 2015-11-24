@@ -64,9 +64,7 @@ is_valid_uptr(void *ptr)
       {
         if(ptr >= t->stack-32 && t->num_extensions <= 2000)
         {
-          uint32_t *newPageAddr = pg_round_down(ptr);
-          struct page *p = page_allocate(ptr, 0);
-          p->file = NULL;
+          struct page *p = page_allocate(ptr, false, PAGET_STACK);
           p->read_only = 0;
           if(p != NULL)
           {
@@ -324,19 +322,18 @@ sys_mmap (int handle, void *addr)
     size_t page_read_bytes = len < PGSIZE ? len : PGSIZE;
 
     /* add page to supplemental PT. mmap'd files are writable */
-    struct page *p = page_allocate (itr_addr, false);
+    struct page *p = page_allocate (itr_addr, false, PAGET_MMAP);
     if(p == NULL)
     {
       return -1;
     }
-    p->file = NULL;
     p->frame = NULL;
     if(page_read_bytes > 0)
     {
       p->file = rfile;
       p->file_offset = offset_tracker;
       p->file_bytes = page_read_bytes;
-      p->private = false; /* SINCE STUFF LOADED HERE IS MMAP'D? */
+      //p->private = false; /* SINCE STUFF LOADED HERE IS MMAP'D? */
     }
 
     /* Advance. */

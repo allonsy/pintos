@@ -7,8 +7,6 @@
 #include "devices/block.h"
 #include "filesys/off_t.h"
 
-
-
 /* Virtual page. */
 struct page
 {
@@ -27,8 +25,10 @@ struct page
   /* Swap information, protected by frame->frame_lock. */
   block_sector_t sector;       /* Starting sector of swap area, or -1. */
 
+  int type; /* holds the type of page this page is */
+
   /* Memory-mapped file information, protected by frame->frame_lock. */
-  bool private;               /* False to write back to file,                  
+  /*bool private;               /* False to write back to file,                  
          true to write back to swap. */
   bool swap;                  /* is the frame in swap currently*/
   struct file *file;          /* File. */
@@ -36,6 +36,12 @@ struct page
   off_t file_bytes;           /* Bytes to read/write, 1...PGSIZE. */
 };
 
+typedef enum {
+  PAGET_MMAP,       /* page is for an mmap'd file */
+  PAGET_READONLY,   /* page is for a read only file */
+  PAGET_STACK,      /* page is a stack page */
+  PAGET_DATA        /* page is a data segment */
+} pagetype ;
 
 hash_hash_func page_hash;
 hash_less_func page_less;
@@ -46,7 +52,7 @@ void page_exit (void);
 bool page_in (void *fault_addr);
 bool page_out (struct page *p);
 bool page_accessed_recently (struct page *p);
-struct page *page_allocate (void *vaddr, bool read_only);
+struct page *page_allocate (void *vaddr, bool read_only, int type);
 void page_deallocate (void *vaddr);
 unsigned page_hash (const struct hash_elem *e, void *aux UNUSED);
 bool page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);

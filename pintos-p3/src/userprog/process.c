@@ -496,6 +496,7 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
   //printf("read bytes are: %ld\n", zero_bytes);
   off_t offset_tracker = ofs;
   struct file *rfile = file_reopen(file);
+  int type;
 
   ASSERT(rfile != NULL);
 
@@ -510,20 +511,21 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* add a page table entry to the supplemental page table for upage 
          data will be loaded lazily by the page fault handler calling
          page_in */
-      struct page *p = page_allocate (upage, !writable);
-      
-      //printf("allocating page for addr: %p\n", p->addr);
+      if(writable)
+        type = PAGET_DATA;
+      else
+        type = PAGET_READONLY;
+      struct page *p = page_allocate (upage, !writable, type);
+
       if(p == NULL)
       {
         return false;
       }
-      p->file = NULL;
       if(page_read_bytes > 0)
       {
         p->file = rfile;
         p->file_offset = offset_tracker;
         p->file_bytes = page_read_bytes;
-        p->private = true; /* SINCE STUFF LOADED HERE IS NOT MMAP'D? PROBABLY UP FOR DEBATE */
       }
 
       /* Advance. */
@@ -542,14 +544,10 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
 static bool
 vm_setup_stack (void **esp, char **arglist, int argc) 
 {
-
-  //PANIC("looks like error was in setup stack?");
   struct page *p;
 
-  if ((p = page_allocate (((uint8_t *) PHYS_BASE) - PGSIZE, false)) != NULL ) 
+  if ((p = page_allocate (((uint8_t *) PHYS_BASE) - PGSIZE, false, PAGET_STACK)) != NULL ) 
   {
-
-      p->file = NULL;
       p->file_offset = 0;
       p->file_bytes = 0;
       
@@ -560,6 +558,7 @@ vm_setup_stack (void **esp, char **arglist, int argc)
       for(i = 0; i < argc; i++)
       {
         int str_length = strlen(arglist[i]) + 1;
+
         *esp = *esp - str_length;
 
         memcpy(*esp, arglist[i], str_length);

@@ -45,95 +45,97 @@ frame_init (void)
 struct frame*
 try_frame_alloc_and_lock (struct page *page)
 {
+  //printf("try_frame_alloc_and_lock: entered\n");
   int i;
   struct frame *f;
-  //bool success;
-  if(!lock_held_by_current_thread(&scan_lock))
-  {
-    lock_acquire(&scan_lock);
-  }
+  lock_acquire(&scan_lock);
   
   for(i = 0; i < frame_cnt; i++)
   {
     f = &frames[i];
     if(f->page == NULL)
     {  
-      if(!lock_held_by_current_thread(&f->lock))
+      if(!lock_held_by_current_thread(&f->lock) && lock_try_acquire(&f->lock))
       {
-        if(lock_try_acquire(&f->lock))
-        {
           f->page = page;
           page->frame = f;
           lock_release(&scan_lock);
+          //printf("try_frame_alloc_and_lock: exiting\n");
           return f;
-        }
       }
     }
   }
 
   /* at this point, we believe that all frames are held */
-
   /* f is locked when this returns */
   f = perform_LRU();
+
   ASSERT(f != NULL);
   struct page *p = f->page;
-  /* p should not be NULL since we held the scan lock above
-    and no page had NULL */
-  if(pagedir_is_dirty(p->thread->pagedir, p->addr))
+  
+  if(p == NULL)
   {
-    if(p->private)
-    {
-      if(!swap_out(p))
+    PANIC("try_frame_alloc_and_lock_2: after LRU f->page is NULL. bizarre.\n");
+    f->page = page;
+    page->frame = f;
+    lock_release(&scan_lock);
+    //printf("try_frame_alloc_and_lock: exiting\n");
+    return f;
+  }
+  ASSERT(p->frame == f);
+  switch(p->type)
+  {
+    case PAGET_STACK:
+    case PAGET_DATA:
+      if(p->thread->pagedir == NULL && p->thread != thread_current())
       {
-        PANIC("try_frame_alloc_and_lock: SWAP SPACE FULL");
+        swap_out(p);
+        ASSERT(p->frame == NULL);
       }
-      /* swapout clears from pagedir */
-      ASSERT(p->frame ==NULL);
       f->page = page;
       page->frame = f;
       lock_release(&scan_lock);
+      //printf("try_frame_alloc_and_lock: exiting\n");
       return f;
-    }
-    else // mmap case
-    {
-      /* if filesize isn't fixed, this could be problematic */
-      /* could also be problematic if we can't get the file thing to work like vm segment had */
-      file_write_at (p->file, p->frame->base, p->file_bytes, p->file_offset); 
-      pagedir_clear_page (p->thread->pagedir, p->addr);
+      break;
+    case PAGET_MMAP:
+      if(p->thread->pagedir == NULL && p->thread != thread_current())
+      {
+        if(pagedir_is_dirty(p->thread->pagedir, p->addr))
+          file_write_at (p->file, p->frame->base, p->file_bytes, p->file_offset); 
+        pagedir_clear_page (p->thread->pagedir, p->addr);
+        memset(f->base, 0, PGSIZE);
+      }
       p->frame = NULL;
       f->page = page;
       page->frame = f;
       lock_release(&scan_lock);
+      //printf("try_frame_alloc_and_lock: exiting\n");
       return f;
-    }
+      break;
+    case PAGET_READONLY: /* file is guaranteed to be nonnull */
+      if(p->thread->pagedir == NULL && p->thread != thread_current())
+      {
+        pagedir_clear_page (p->thread->pagedir, p->addr);
+        memset(f->base, 0, PGSIZE);
+      }
+      p->frame = NULL;
+      f->page = page;
+      page->frame = f;
+      lock_release(&scan_lock);
+      //printf("try_frame_alloc_and_lock: exiting\n");
+      return f;
+      break;
+    default:
+      PANIC("try_frame_alloc_and_lock_2: reached an undefined page type...");
+      break;
   }
-  else if (p->read_only && p->file != NULL)
-  {
-    p->frame == NULL; /* safe to do since scan lock and frame lock are held */
-    pagedir_clear_page (p->thread->pagedir, p->addr);
-    f->page = page;
-    page->frame = f;
-    lock_release(&scan_lock);
-    return f;
-  }
-  else
-  {
-    if(!swap_out(p))
-    {
-      PANIC("try_frame_alloc_and_lock: SWAP SPACE FULL");
-    }
-    ASSERT(p->frame ==NULL);
-    f->page = page;
-    page->frame = f;
-    lock_release(&scan_lock);
-    return f;
-  }
+  
 
   lock_release(&f->lock);
-
   lock_release(&scan_lock);
 
-  PANIC("try_frame_alloc_and_lock: WE NEED ADDITIONAL LOGIC AFTER LRU");
+  PANIC("try_frame_alloc_and_lock_2: WE NEED ADDITIONAL LOGIC AFTER LRU");
   return NULL;
 }
 
@@ -193,7 +195,7 @@ struct frame *perform_LRU()
 
     uint32_t *cur_pagedir = p->thread->pagedir;
     //printf("acc: %ld dirty: %ld\n", pagedir_is_accessed(cur_pagedir, p->addr), pagedir_is_dirty(cur_pagedir, p->addr));
-    if(!pagedir_is_accessed(cur_pagedir, p->addr))
+    if(cur_pagedir && !pagedir_is_accessed(cur_pagedir, p->addr))
     {
       // if(!pagedir_is_dirty(cur_pagedir, p->addr))
       // {
@@ -207,7 +209,7 @@ struct frame *perform_LRU()
      //   }
      // }
     }
-    else
+    else if(cur_pagedir)
     {
       pagedir_set_accessed(cur_pagedir, p->addr, 0);
       didChange = 1;
