@@ -48,18 +48,24 @@ struct page
   /* Swap information, protected by frame->frame_lock. */
   block_sector_t sector;       /* Starting sector of swap area, or -1. */
 
- //ADDED BY STUDENTS ============================================
   /* Memory-mapped file information, protected by frame->frame_lock. */
   bool private;               /* False to write back to file,                  
          true to write back to swap.
 
+  //ADDED BY STUDENTS ============================================
+
   bool swap;                  /* is the frame in swap currently?*/
+
+  int type;                   /* holds enumerated page type */
+
   //END ADDED BY STUDENTS  =======================================
 
   struct file *file;          /* File. */
   off_t file_offset;          /* Offset in file. */
   off_t file_bytes;           /* Bytes to read/write, 1...PGSIZE. */
 };
+
+
 
 ---- ALGORITHMS ----
 
