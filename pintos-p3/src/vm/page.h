@@ -41,7 +41,7 @@ typedef enum {
   PAGET_READONLY,   /* page is for a read only file */
   PAGET_STACK,      /* page is a stack page */
   PAGET_DATA        /* page is a data segment */
-} pagetype ;
+} pagetype;
 
 hash_hash_func page_hash;
 hash_less_func page_less;
