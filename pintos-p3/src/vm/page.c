@@ -12,6 +12,7 @@
 #include "filesys/filesys.h"
 #include "userprog/pagedir.h"
 #include "lib/string.h"
+#include "threads/thread.h"
 
 #define STACK_MAX (1024 * 1024)
 
@@ -35,6 +36,7 @@ destroy_page (struct hash_elem *p_, void *aux UNUSED)
 struct
 page *page_for_addr (const void *address) 
 {
+  //printf("in page addr\n");
   struct thread *t = thread_current ();
 
   struct page p;
@@ -43,7 +45,6 @@ page *page_for_addr (const void *address)
   p.addr = pg_round_down (address);
 
   bool lockheld = lock_held_by_current_thread(&t->supp_pt_lock);
-
   if(!lockheld)
   {
     lock_acquire(&t->supp_pt_lock);
@@ -56,7 +57,9 @@ page *page_for_addr (const void *address)
     lock_release(&t->supp_pt_lock);
   }
 
-  return e != NULL ? hash_entry (e, struct page, hash_elem) : NULL;
+  struct page *ret= e != NULL ? hash_entry (e, struct page, hash_elem) : NULL;
+  //printf("pass page_addr\n");
+  return ret;
 }
 
 
@@ -107,7 +110,6 @@ page_in (void *fault_addr)
   AND none of the frames are read-only, since those can be read in
   from the file again */
   struct frame *f = try_frame_alloc_and_lock (p);
-  
   if(f != NULL)
   {
     off_t read;
@@ -121,13 +123,17 @@ page_in (void *fault_addr)
     {
       if(p->filename)
       {
+        lock_acquire(&filesys_lock);
         rfile = filesys_open(p->filename);
+        lock_release(&filesys_lock);
       }
       else
       {
         rfile = p->file;
       }
+      lock_acquire(&filesys_lock);
       read = file_read_at (p->file, f->base, p->file_bytes, p->file_offset);
+      lock_release(&filesys_lock);
       if(read != p->file_bytes)
       {
         frame_unlock(f);

@@ -291,9 +291,12 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* Open executable file. */
   char *tempy;
   memcpy(file_name_cpy, file_name, strlen(file_name)+1);
+  
   char *file_exec_name = strtok_r(file_name_cpy, " ", &tempy);
-
+  lock_acquire(&filesys_lock);
   file = filesys_open (file_exec_name);
+  lock_release(&filesys_lock);
+  
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_exec_name);

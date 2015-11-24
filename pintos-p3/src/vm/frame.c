@@ -6,6 +6,7 @@
 #include "userprog/pagedir.h"
 #include "vm/page.h"
 #include "threads/vaddr.h"
+#include "threads/pte.h"
 
 
 static struct frame *frames;
@@ -180,7 +181,7 @@ struct frame *perform_LRU()
   {
     //printf("loop\n");
     struct page *p = frames[hand].page;
-    if(p==NULL || is_kernel_vaddr(p->addr))
+    if(p==NULL || is_kernel_vaddr(p->addr) || p->thread->pagedir == NULL || p->thread->pagedir == 0xcccccccc)
     {
       hand++;
       if(hand >= frame_cnt)
@@ -189,7 +190,6 @@ struct frame *perform_LRU()
       }
       continue;
     }
-
     uint32_t *cur_pagedir = p->thread->pagedir;
     //printf("acc: %ld dirty: %ld\n", pagedir_is_accessed(cur_pagedir, p->addr), pagedir_is_dirty(cur_pagedir, p->addr));
     if(!pagedir_is_accessed(cur_pagedir, p->addr))

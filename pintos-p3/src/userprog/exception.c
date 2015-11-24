@@ -173,7 +173,6 @@ page_fault (struct intr_frame *f)
   /* Turn interrupts back on (they were only off so that we could
      be assured of reading CR2 before it changed). */
   intr_enable ();
-
   /* Count page faults. */
   page_fault_cnt++;
   if(fault_addr == 0)
@@ -206,7 +205,10 @@ page_fault (struct intr_frame *f)
         t->stack = f->esp;
         stack_ptr_swizzle = t->stack;
       }
-      if(fault_addr >= stack_ptr_swizzle-32)
+      void *pg_above_addr = pg_round_down(fault_addr) + PGSIZE * 0x1; //stack allocation heuristic
+      pg_above_addr = pg_above_addr < PHYS_BASE ? pg_above_addr : PHYS_BASE - 1;
+      struct page *checkPage = page_for_addr(pg_above_addr);
+      if(fault_addr >= stack_ptr_swizzle-32 /* || checkPage */)
       {
         uint32_t *newPageAddr = pg_round_down(fault_addr);
         struct page *p = page_allocate(fault_addr, 0);
