@@ -1,8 +1,8 @@
-       	+---------------------------+
-		    |		CS 140		              |
-		    | PROJECT 3: VIRTUAL MEMORY	|
-		    |	   DESIGN DOCUMENT	      |
-		    +---------------------------+
+        +---------------------------+
+        |   CS 140                  |
+        | PROJECT 3: VIRTUAL MEMORY |
+        |    DESIGN DOCUMENT        |
+        +---------------------------+
 
 ---- GROUP ----
 
@@ -20,8 +20,8 @@ Alejandro Younger <acy1@uchicago.edu>
 >> preparing your submission, other than the Pintos documentation, course
 >> text, lecture notes, and course staff.
 
-			PAGE TABLE MANAGEMENT
-			=====================
+      PAGE TABLE MANAGEMENT
+      =====================
 
 ---- DATA STRUCTURES ----
 
@@ -113,8 +113,8 @@ frame. We use the type variable and file struct to keep track if the page
 relates to an mmapped file. We also have an array of frames to keep track of frames
 and we use the swap bitmap to keep track of swap availability.
 
-		       PAGING TO AND FROM DISK
-		       =======================
+           PAGING TO AND FROM DISK
+           =======================
 
 ---- DATA STRUCTURES ----
 
@@ -179,7 +179,7 @@ We also make sure that we always lock in the correct order to prevent deadlock.
 When we begin the eviction process (writing data to disk and writing 
 the new data to the frame), we clear the hardware pagedir entry for the
 page for the process Q. Therefore, if Q tries to modify the data, Q will
-pagefault and have to acquire the lock to swap into the frame.
+pagefault and have to acquire the lock to swap in the frame.
 
 >> B7: Suppose a page fault in process P causes a page to be read from
 >> the file system or swap.  How do you ensure that a second process Q
@@ -219,8 +219,8 @@ as the frame list and swap device, we need one global lock to lock the entire
 structure. We need to iterate over the entire list (or bitmap item) so we need
 global locks at the expense of efficiency.
 
-			 MEMORY MAPPED FILES
-			 ===================
+       MEMORY MAPPED FILES
+       ===================
 
 ---- DATA STRUCTURES ----
 
@@ -266,8 +266,8 @@ we simply free the frame instead of copying it to disk. The difference
 however is that mmapped files can be dirty so in that case we have to
 write the data back to the file rather than swapping to disk. 
 
-			   SURVEY QUESTIONS
-			   ================
+         SURVEY QUESTIONS
+         ================
 
 Answering these questions is optional, but it will help us improve the
 course in future quarters.  Feel free to tell us anything you
@@ -284,13 +284,13 @@ the quarter.
 Virtual memory is really hard and really impressive. It is cool to see
 how a user can think it has 3GB of space with an actual physical ram of ~2MB
 
+
 >> Is there some particular fact or hint we should give students in
 >> future quarters to help them solve the problems?  Conversely, did you
 >> find any of our guidance to be misleading?
 
 >> Do you have any suggestions for the TAs to more effectively assist
 >> students, either for future quarters or the remaining projects?
-
 We thought that the starter code provided was great and helped us think more
 about the data structures that we wanted to add.
 
