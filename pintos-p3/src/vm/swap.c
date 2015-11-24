@@ -140,14 +140,15 @@ swap_out (struct page *p)
     idx_first_free = bitmap_scan (swap_bitmap, 0, 1, false);
   } 
 
+  lock_release(&swap_lock);
+
   /* no free things in the swap sector */
   if(bit_idx == BITMAP_ERROR)
   {
     frame_unlock(p->frame); 
+    lock_release(&swap_lock);
     return false;
   }
-
-  lock_release(&swap_lock);
 
   block_sector_t start = PAGE_SECTORS * bit_idx;
 

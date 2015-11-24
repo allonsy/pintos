@@ -14,6 +14,9 @@ static size_t frame_cnt;
 static struct lock scan_lock;
 static size_t hand;
 
+static struct frame *perform_LRU(void);
+static struct frame *perform_LRU_2(void);
+static struct frame *randomEvict(void);
 
 void
 frame_init (void)
@@ -70,14 +73,15 @@ try_frame_alloc_and_lock (struct page *page)
   /* at this point, we believe that all frames are held */
   /* f is locked when this returns */
   //f = perform_LRU();
-  f = randomEvict();
+  //f = randomEvict();
+  f = perform_LRU_2 ();
 
   ASSERT(f != NULL);
   struct page *p = f->page;
   
   if(p == NULL)
   {
-    PANIC("try_frame_alloc_and_lock_2: after LRU f->page is NULL. bizarre.\n");
+    //PANIC("try_frame_alloc_and_lock_2: after LRU f->page is NULL. bizarre.\n");
     f->page = page;
     page->frame = f;
     lock_release(&scan_lock);
@@ -247,4 +251,78 @@ struct frame *randomEvict()
   int i = random_ulong () % frame_cnt;
   frame_lock(&frames[i]);
   return &frames[i];
+}
+
+struct frame *perform_LRU_2()
+{
+  struct frame *ret=NULL;
+  int didChange = 0;
+  int top = hand;
+  int oneshot = 0;
+  while(ret == NULL)
+  {
+    //printf("loop\n");
+    struct page *p = frames[hand].page;
+    if(p==NULL || is_kernel_vaddr(p->addr) || p->thread->pagedir == NULL || p->thread->pagedir == 0xcccccccc)
+    {
+      hand++;
+      if(hand >= frame_cnt)
+      {
+        hand = 0;
+      }
+      if(hand == 0)
+      {
+        frame_lock(&frames[frame_cnt-1]);
+        return &frames[frame_cnt-1];
+      }
+      else
+      {
+        frame_lock(&frames[hand-1]);
+        return &frames[hand-1];
+      }
+      continue;
+    }
+    uint32_t *cur_pagedir = p->thread->pagedir;
+    //printf("acc: %ld dirty: %ld\n", pagedir_is_accessed(cur_pagedir, p->addr), pagedir_is_dirty(cur_pagedir, p->addr));
+    if(!pagedir_is_accessed(cur_pagedir, p->addr))
+    {
+      //if(!pagedir_is_dirty(cur_pagedir, p->addr))
+      //{
+        ret = &frames[hand];
+      //}
+      //else
+      //{
+      //  if(oneshot)
+      //  {
+      //    ret = &frames[hand];
+       // }
+     // }
+    }
+    else
+    {
+      pagedir_set_accessed(cur_pagedir, p->addr, 0);
+      didChange = 1;
+    }
+    hand++;
+    if(hand >= frame_cnt)
+    {
+      hand = 0;
+    }
+    if(hand == top)
+    {
+      if(didChange)
+      {
+        didChange = 0;
+      }
+      else
+      {
+        oneshot = 1;
+      }
+    }
+  }
+  if(ret != NULL && !lock_held_by_current_thread(&ret->lock))
+  {
+    frame_lock(ret);
+  }
+  return ret;
 }
