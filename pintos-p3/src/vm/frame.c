@@ -22,6 +22,7 @@ frame_init (void)
   int i = 0;
   hand = 0;
   lock_init (&scan_lock);
+  random_init (frame_cnt);
 
   frames = malloc (sizeof *frames * init_ram_pages);
   if (frames == NULL)
@@ -68,7 +69,8 @@ try_frame_alloc_and_lock (struct page *page)
 
   /* at this point, we believe that all frames are held */
   /* f is locked when this returns */
-  f = perform_LRU();
+  //f = perform_LRU();
+  f = randomEvict();
 
   ASSERT(f != NULL);
   struct page *p = f->page;
@@ -87,7 +89,7 @@ try_frame_alloc_and_lock (struct page *page)
   {
     case PAGET_STACK:
     case PAGET_DATA:
-      if(p->thread->pagedir == NULL && p->thread != thread_current())
+      if(p->thread->pagedir != NULL && p->thread->pagedir != 0xcccccccc)
       {
         swap_out(p);
         ASSERT(p->frame == NULL);
@@ -99,7 +101,7 @@ try_frame_alloc_and_lock (struct page *page)
       return f;
       break;
     case PAGET_MMAP:
-      if(p->thread->pagedir == NULL && p->thread != thread_current())
+      if(p->thread->pagedir != NULL && p->thread->pagedir != 0xcccccccc)
       {
         if(pagedir_is_dirty(p->thread->pagedir, p->addr))
           file_write_at (p->file, p->frame->base, p->file_bytes, p->file_offset); 
@@ -114,7 +116,7 @@ try_frame_alloc_and_lock (struct page *page)
       return f;
       break;
     case PAGET_READONLY: /* file is guaranteed to be nonnull */
-      if(p->thread->pagedir == NULL && p->thread != thread_current())
+      if(p->thread->pagedir != NULL && p->thread->pagedir != 0xcccccccc)
       {
         pagedir_clear_page (p->thread->pagedir, p->addr);
         memset(f->base, 0, PGSIZE);
@@ -237,4 +239,12 @@ struct frame *perform_LRU()
     frame_lock(ret);
   }
   return ret;
+}
+
+
+struct frame *randomEvict()
+{
+  int i = random_ulong () % frame_cnt;
+  frame_lock(&frames[i]);
+  return &frames[i];
 }

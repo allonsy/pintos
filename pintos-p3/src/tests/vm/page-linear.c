@@ -19,11 +19,11 @@ test_main (void)
   /* Initialize to 0x5a. */
   msg ("initialize");
 
-  printf("page-linear: buf: %p buf + SIZE %p\n", buf, buf + SIZE);
+  //printf("page-linear: buf: %p buf + SIZE %p\n", buf, buf + SIZE);
 
   memset (buf, 0x5a, sizeof buf);
 
-  printf("page-linear: made it past memset\n");
+  //printf("page-linear: made it past memset\n");
 
   // memset (buf + ((sizeof buf) / 2), 0x5a, (sizeof buf) / 4);
 
