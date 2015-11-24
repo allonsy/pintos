@@ -161,25 +161,25 @@ process_exit (void)
   }
   lock_release(&cur->child_list_lock);
 
-  lock_acquire(&cur->supp_pt_lock);
-  //printf("hash size is: %d\n", hash_size(&cur->supp_pt));
-  struct hash_iterator i;
-  struct hash_elem *cond;
-  hash_first(&i, &cur->supp_pt);
-  cond = hash_next(&i);
-  while(cond)
-  {
-    //printf("clearing\n");
-    struct page *p = hash_entry(hash_cur(&i), struct page, hash_elem);
-    cond=hash_next(&i);
-    if(p->swap)
-    {
-      remove_from_swap(p);
-    }
-    page_deallocate(p);
-  }
+  // lock_acquire(&cur->supp_pt_lock);
+  // //printf("hash size is: %d\n", hash_size(&cur->supp_pt));
+  // struct hash_iterator i;
+  // struct hash_elem *cond;
+  // hash_first(&i, &cur->supp_pt);
+  // cond = hash_next(&i);
+  // while(cond)
+  // {
+  //   //printf("clearing\n");
+  //   struct page *p = hash_entry(hash_cur(&i), struct page, hash_elem);
+  //   cond=hash_next(&i);
+  //   if(p->swap)
+  //   {
+  //     remove_from_swap(p);
+  //   }
+  //   page_deallocate(p);
+  // }
 
-  lock_release(&cur->supp_pt_lock);
+  // lock_release(&cur->supp_pt_lock);
 
   uint32_t *pd;
 
@@ -197,7 +197,7 @@ process_exit (void)
          that's been freed (and cleared). */
       cur->pagedir = NULL;
       pagedir_activate (NULL);
-      pagedir_destroy (pd);
+      //pagedir_destroy (pd);
     }
 }
 
@@ -517,6 +517,7 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
   //printf("read bytes are: %ld\n", zero_bytes);
   off_t offset_tracker = ofs;
   struct file *rfile = file_reopen(file);
+  int type;
 
   ASSERT(rfile != NULL);
 
@@ -531,7 +532,12 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* add a page table entry to the supplemental page table for upage 
          data will be loaded lazily by the page fault handler calling
          page_in */
-      struct page *p = page_allocate (upage, !writable);
+
+      if(writable)
+        type = PAGET_DATA;
+      else
+        type = PAGET_READONLY;
+      struct page *p = page_allocate (upage, !writable, type);
       //printf("allocating page for addr: %p\n", p->addr);
       if(p == NULL)
       {
@@ -543,7 +549,7 @@ vm_load_segment (struct file *file, off_t ofs, uint8_t *upage,
         p->file = rfile;
         p->file_offset = offset_tracker;
         p->file_bytes = page_read_bytes;
-        p->private = true; /* SINCE STUFF LOADED HERE IS NOT MMAP'D? PROBABLY UP FOR DEBATE */
+        //p->private = true; /* SINCE STUFF LOADED HERE IS NOT MMAP'D? PROBABLY UP FOR DEBATE */
       }
 
       /* Advance. */
@@ -566,7 +572,7 @@ vm_setup_stack (void **esp, char **arglist, int argc)
   //PANIC("looks like error was in setup stack?");
   struct page *p;
 
-  if ((p = page_allocate (((uint8_t *) PHYS_BASE) - PGSIZE, false)) != NULL ) 
+  if ((p = page_allocate (((uint8_t *) PHYS_BASE) - PGSIZE, false, PAGET_STACK)) != NULL ) 
   {
 
       p->file = NULL;

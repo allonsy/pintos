@@ -210,13 +210,14 @@ page_fault (struct intr_frame *f)
       /* if(fault_addr >= stack_ptr_swizzle-32 || (page_for_addr(pg_round_down(fault_addr)-PGSIZE) && !is_kernel_vaddr(fault_addr))) */
       if(fault_addr >= stack_ptr_swizzle-32 && fault_addr < PHYS_BASE)
       {
-        struct page *p = page_allocate(fault_addr, 0);
+        struct page *p = page_allocate(fault_addr, false, PAGET_STACK);
         p->file = NULL;
         p->read_only = 0;
         if(p != NULL)
         {
           t->num_extensions++;
-          page_in(fault_addr);
+          if(!page_in_2(fault_addr))
+            PANIC("page_fault: unable to page in successfully");
           return;
         }
       }
@@ -232,15 +233,16 @@ page_fault (struct intr_frame *f)
         except_exit();
       }
     }
-    if(is_user_vaddr(fault_addr) && !page_in(fault_addr))
+    if(is_user_vaddr(fault_addr) && !page_in_2(fault_addr))
     {
-      //PANIC("page_fault: page_in error");
+      //PANIC("page_fault: page_in_2 error");
       except_exit ();
     }
     return;
   }
-  else
+  else /* writing to read only memory should exit every thread */
   {
+    //PANIC("page_fault: not_present is false");
     except_exit();
   }
 }

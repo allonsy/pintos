@@ -72,7 +72,8 @@ page_exit (void)
   struct hash_iterator itr;
   struct page *p;
 
-  lock_acquire(&t->supp_pt_lock);
+  /* lock is held in thread_exit */
+  //lock_acquire(&t->supp_pt_lock);
   //printf("page_exit: beginning loop\n");
   while(!hash_empty(&t->supp_pt))
   {
@@ -84,7 +85,7 @@ page_exit (void)
     page_deallocate(p->addr);
   }
   //printf("page_exit: out of the loop with no memory errors!!\n");
-  lock_release(&t->supp_pt_lock);
+  //lock_release(&t->supp_pt_lock);
   return;
 }
 
@@ -101,8 +102,6 @@ page_in (void *fault_addr)
     PANIC("page_in: address %p not in SPT", fault_addr);
   }
 
-
-
   /* try_frame_alloc_and_lock will only return NULL
   if EVERY frame is being used AND the swap space is full
   AND none of the frames are read-only, since those can be read in
@@ -110,7 +109,11 @@ page_in (void *fault_addr)
 
   //printf("page_in: after page_for_addr and before try_frame_alloc_and_lock, fault_addr: %p\n", fault_addr);
 
-  struct frame *f = try_frame_alloc_and_lock (p);
+  struct frame *f = try_frame_alloc_and_lock_2 (p);
+  ASSERT(f != NULL);
+  ASSERT(f->page == p);
+  ASSERT(p->frame == f);
+
 
   //printf("page_in: after try_frame_alloc_and_lock with frame addr %p\n", f);
   
@@ -145,6 +148,11 @@ page_in (void *fault_addr)
     //printf("page_in: about to call pagedir_set_page on address %p\n", p->addr);
     if(pagedir_set_page (p->thread->pagedir, p->addr, f->base, !p->read_only))
     {
+      if(p->swap)
+      {
+        /* if we read this in from swap then it is certainly dirty */
+        pagedir_set_dirty (p->thread->pagedir, p->addr, true);
+      }
       frame_unlock(f);
       //printf("page_in: exiting\n");
       return true;
@@ -175,20 +183,15 @@ page_accessed_recently (struct page *p)
 }
 
 struct page * 
-page_allocate (void *vaddr, bool read_only) 
+page_allocate (void *vaddr, bool read_only, int type) 
 {
-
-  //printf("page_allocate: entered\n");
   if(!is_user_vaddr(vaddr))
   {
     PANIC("tried to allocate a page for a kernel address %p", vaddr);
   }
   struct page *p;  
   struct thread *t = thread_current ();
-  p = malloc(sizeof *p);
-  p->swap = false;
-  p->private=true;
-  if(p == NULL)
+  if((p = malloc(sizeof *p)) == NULL)
   {
     PANIC("no memory for struct page allocation");
     return NULL;
@@ -197,18 +200,17 @@ page_allocate (void *vaddr, bool read_only)
   p->addr = pg_round_down (vaddr);
   p->read_only = read_only;
   p->thread = t;
-
   p->frame = NULL;
+  p->swap = false;
+  //p->private = true;
+  p->type = type;
 
   bool lockheld = lock_held_by_current_thread(&t->supp_pt_lock);
-
   if(!lockheld)
   {
     lock_acquire(&t->supp_pt_lock);
   }
-
   void *success = hash_insert (&t->supp_pt, &p->hash_elem);
-
   if(!lockheld)
   {
     lock_release(&t->supp_pt_lock);
@@ -217,13 +219,11 @@ page_allocate (void *vaddr, bool read_only)
   // note hash_insert returns null on success
   if(!success)
   {
-    //printf("page_allocate: exiting\n");
     return p;
   }
   else 
   {
     free(p);
-    //printf("page_allocate: exiting\n");
     return NULL;
   }
 }
@@ -251,7 +251,7 @@ page_deallocate (void *vaddr)
       lock_release(&t->supp_pt_lock);
     }
 
-    if(!p->private && p->frame && pagedir_is_dirty(t->pagedir, p->addr))
+    if(p->type == PAGET_MMAP && p->frame && pagedir_is_dirty(t->pagedir, p->addr))
     {
       lock_acquire(&filesys_lock);
       file_write_at (p->file, p->frame->base, p->file_bytes, p->file_offset);
@@ -308,4 +308,107 @@ page_unlock (const void *addr)
   {
     frame_unlock(p->frame);
   }
+}
+
+
+/* this function expects that fault_addr is found in the supplemental page table
+   when this function returns the current thread will own the lock on the newly
+   acquired frame. the page will be populated.   */
+bool 
+page_in_2 (void *fault_addr) 
+{
+  //printf("page_in: entered with fault_addr %p\n", fault_addr);
+  struct page *p = page_for_addr (fault_addr);
+  if(p == NULL)
+  {
+    PANIC("page_in: address %p not in SPT", fault_addr);
+  }
+
+  /* try_frame_alloc_and_lock will only return NULL
+  if EVERY frame is being used AND the swap space is full
+  AND none of the frames are read-only, since those can be read in
+  from the file again */
+
+  //printf("page_in: after page_for_addr and before try_frame_alloc_and_lock, fault_addr: %p\n", fault_addr);
+
+  struct frame *f = try_frame_alloc_and_lock_2 (p);
+  ASSERT(f != NULL);
+  ASSERT(f->page == p);
+  ASSERT(p->frame == f);
+  //printf("page_in: after try_frame_alloc_and_lock with frame addr %p\n", f);
+  
+  if(f != NULL)
+  {
+    off_t read;
+    bool was_swap = false;
+
+    switch(p->type)
+    {
+      case PAGET_STACK:
+        if(p->swap) /* if it is in swap then it was swapped out because it was dirty */
+        {
+          swap_in(p);
+          was_swap = true;
+        } else { /* just need a new page, and we have a frame */
+          memset (f->base, 0, PGSIZE);
+        }
+        break;
+      case PAGET_DATA:
+        if(p->swap) /* if it is in swap then it was swapped out because it was dirty */
+        {
+          swap_in(p);
+          was_swap = true;
+        } else if (p->file) { /* just need a new page, and we have a frame */
+          read = file_read_at (p->file, f->base, p->file_bytes, p->file_offset);
+          if(read != p->file_bytes)
+          {
+            PANIC("page_in: unable to read correct number of bytes from file %p, read %d, expected %d", p->file, read, p->file_bytes);
+            frame_unlock(f);
+            frame_free(f);
+            return false;
+          }
+          memset (f->base + read, 0, PGSIZE - read);
+        } else
+        {
+          memset (f->base, 0, PGSIZE);
+        }
+        break;
+      case PAGET_MMAP:
+      case PAGET_READONLY: /* file is guaranteed to be nonnull */
+        ASSERT(p->file != NULL);
+        read = file_read_at (p->file, f->base, p->file_bytes, p->file_offset);
+        if(read != p->file_bytes)
+        {
+          PANIC("page_in: unable to read correct number of bytes from file %p, read %d, expected %d", p->file, read, p->file_bytes);
+          frame_unlock(f);
+          frame_free(f);
+          return false;
+        }
+        memset (f->base + read, 0, PGSIZE - read);
+        break;
+      default:
+        PANIC("page_in: reached an undefined page type...");
+        break;
+    }
+
+    ASSERT(p->thread->pagedir != NULL);
+    if(pagedir_set_page (p->thread->pagedir, p->addr, f->base, !p->read_only))
+    {
+      if(was_swap) {
+        pagedir_set_dirty (p->thread->pagedir, p->addr, true);
+      }
+
+      frame_unlock(f);
+      //printf("page_in: exiting\n");
+      return true;
+    } else {
+      frame_unlock(f);
+      frame_free(f);
+      PANIC("page_in: failed to set page table entry");
+      return false;
+    }
+  } /* endif (f != NULL) */ 
+
+  PANIC("page_in: no frames left :(");
+  return false;
 }

@@ -326,7 +326,15 @@ thread_exit (void)
   process_exit ();
 #endif
 
-  page_exit();
+  struct thread *t = thread_current ();
+  lock_acquire(&t->supp_pt_lock);
+  if(!hash_empty (&t->supp_pt))
+  {
+     page_exit();
+  }
+  lock_release(&t->supp_pt_lock);
+
+ 
 
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
@@ -502,6 +510,7 @@ init_thread (struct thread *t, const char *name, int priority)
   memset (t, 0, sizeof *t);
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
+  t->name[15] = '\0';
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;

@@ -1,5 +1,6 @@
 #include "swap.h"
 #include "page.h"
+#include "frame.h"
 #include "threads/vaddr.h"
 #include "devices/block.h"
 #include "lib/kernel/bitmap.h"
@@ -70,12 +71,8 @@ swap_init (void)
 bool
 swap_in (struct page *p)
 {
-  printf("swap_in: entered\n");
+  //printf("swap_in: entered\n");
   int i;
-
-  /* this lock on the outside since it has more contexts
-    in which it can be locked */
-
   for(i = 0; i < PAGE_SECTORS; i++)
   {
     block_read (swap_device, p->sector + i, p->frame->base + (BLOCK_SECTOR_SIZE * i));
@@ -86,29 +83,30 @@ swap_in (struct page *p)
   lock_acquire(&swap_lock);
   bitmap_reset (swap_bitmap, bit_idx);
   idx_first_free = bit_idx < idx_first_free ? bit_idx : idx_first_free;
-  lock_release(&swap_lock);
   p->sector = -1;
   p->swap = false;
+  lock_release(&swap_lock);
+
   /* NOTE, we do not need to set the pagedir entry here, as that is handled in page_in */
 
-  printf("swap_in: exiting\n");
+  //printf("swap_in: exiting\n");
   return true;
 }
 
-bool remove_from_swap(struct page *p)
+void remove_from_swap(struct page *p)
 {
+  if(p->sector != -1)
+  {
+    size_t bit_idx = p->sector / PAGE_SECTORS;
 
-  size_t bit_idx = p->sector / PAGE_SECTORS;
-
-  lock_acquire(&swap_lock);
-  bitmap_reset (swap_bitmap, bit_idx);
-  idx_first_free = bit_idx < idx_first_free ? bit_idx : idx_first_free;
-  lock_release(&swap_lock);
-  p->sector = -1;
-  p->swap = false;
-  /* NOTE, we do not need to set the pagedir entry here, as that is handled in page_in */
-
-  return true;
+    lock_acquire(&swap_lock);
+    bitmap_reset (swap_bitmap, bit_idx);
+    idx_first_free = bit_idx < idx_first_free ? bit_idx : idx_first_free;
+    p->swap = false;
+    lock_release(&swap_lock);
+    p->sector = -1;    
+    return true;
+  }
 }
 
 /* this function will be called from try_frame_alloc_and_lock.
@@ -123,8 +121,22 @@ swap_out (struct page *p)
   size_t bit_idx;
   int i;
 
-  printf("swap_out: entered\n");
+  //printf("swap_out: entered\n");
 
+  /* don't swap out if the page is clean */
+  if(!pagedir_is_dirty(p->thread->pagedir, p->addr))
+  {
+    memset(p->frame->base, 0, PGSIZE);
+    p->frame->page = NULL;
+    p->frame = NULL;
+    lock_acquire(&swap_lock);
+    p->swap = false;
+    p->sector = -1;
+    lock_release(&swap_lock);
+    pagedir_clear_page (p->thread->pagedir, p->addr);
+    //printf("swap_out: exiting clean case\n");
+    return true;
+  }
   /* this lock on the outside since it has more contexts
     in which it can be locked */
   lock_acquire(&swap_lock);
@@ -163,14 +175,20 @@ swap_out (struct page *p)
   /* no free things in the swap sector */
   if(bit_idx == BITMAP_ERROR)
   {
+    PANIC("swap_out: exiting with no swap space available");
     frame_unlock(p->frame); 
-    printf("swap_out: exiting with no swap space available\n");
     return false;
   }
 
-  lock_release(&swap_lock);
+
+
 
   block_sector_t start = PAGE_SECTORS * bit_idx;
+
+  p->sector = start;
+  p->swap = true;
+  lock_release(&swap_lock);
+
 
   for(i = 0; i < PAGE_SECTORS; i++)
   {
@@ -178,20 +196,20 @@ swap_out (struct page *p)
     block_write (swap_device, start + i, p->frame->base + (i * BLOCK_SECTOR_SIZE));
   }
 
-  p->sector = start;
   p->frame->page = NULL;
   p->frame = NULL; /* safe since we are calling this with frame lock and scan lock held */
+
   if(p->thread->pagedir)
   {
     pagedir_clear_page (p->thread->pagedir, p->addr);
   }
   else
   {
-    printf("Huh %p\n", p->addr);
+    PANIC("swap_out: page: %p has NULL pagedir\n", p->addr);
   }
-  p->swap = true;
 
-  printf("swap_out: exiting\n");
+
+  //printf("swap_out: exiting dirty case\n");
   return true;
 }
 

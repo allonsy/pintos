@@ -65,13 +65,14 @@ is_valid_uptr(void *ptr)
         if(ptr >= t->stack-32 && t->num_extensions <= 2000)
         {
           uint32_t *newPageAddr = pg_round_down(ptr);
-          struct page *p = page_allocate(ptr, 0);
+          struct page *p = page_allocate(ptr, false, PAGET_STACK);
           p->file = NULL;
           p->read_only = 0;
           if(p != NULL)
           {
             t->num_extensions++;
-            page_in(ptr);
+            if(!page_in_2(ptr))
+            PANIC("page_fault: unable to page in successfully");
             return 1;
           }
         }
@@ -326,7 +327,7 @@ sys_mmap (int handle, void *addr)
     size_t page_read_bytes = len < PGSIZE ? len : PGSIZE;
 
     /* add page to supplemental PT. mmap'd files are writable */
-    struct page *p = page_allocate (itr_addr, false);
+    struct page *p = page_allocate (itr_addr, false, PAGET_MMAP);
     if(p == NULL)
     {
       return -1;
@@ -338,7 +339,7 @@ sys_mmap (int handle, void *addr)
       p->file = rfile;
       p->file_offset = offset_tracker;
       p->file_bytes = page_read_bytes;
-      p->private = false; /* SINCE STUFF LOADED HERE IS MMAP'D? */
+      //p->private = false; /* SINCE STUFF LOADED HERE IS MMAP'D? */
     }
 
     /* Advance. */
@@ -381,8 +382,6 @@ sys_mmap (int handle, void *addr)
 
 /* Remove mapping M from the virtual address space,                              
    writing back any pages that have changed. */
-/* Remove mapping M from the virtual address space,                              
-   writing back any pages that have changed. */
 void
 sys_munmap (int mapping)
 {
@@ -393,9 +392,8 @@ sys_munmap (int mapping)
     return;
 
   void *itr_addr = map->base;
+
   int i = 0;
-
-
   while(i < map->page_cnt)
   {
     page_deallocate(itr_addr);
@@ -409,12 +407,6 @@ sys_munmap (int mapping)
   free(map);
   return;
 }
-
-
-
-
-
-
 
 /* Exec system call. */
 static int

@@ -16,6 +16,17 @@ static struct lock scan_lock;
 static size_t hand;
 
 
+void lock_scan(void)
+{
+  lock_acquire(&scan_lock);
+}
+
+void unlock_scan(void)
+{
+  lock_release(&scan_lock);
+}
+
+
 void
 frame_init (void)
 {
@@ -52,31 +63,31 @@ try_frame_alloc_and_lock (struct page *page)
   int i;
   struct frame *f;
   //bool success;
-  if(!lock_held_by_current_thread(&scan_lock))
-  {
+  //if(!lock_held_by_current_thread(&scan_lock))
+  //{
     lock_acquire(&scan_lock);
-  }
+  //}
   
   for(i = 0; i < frame_cnt; i++)
   {
     f = &frames[i];
     if(f->page == NULL)
     {  
-      if(!lock_held_by_current_thread(&f->lock))
+      if(!lock_held_by_current_thread(&f->lock) && f->page == NULL)
       {
         if(lock_try_acquire(&f->lock))
         {
           f->page = page;
           page->frame = f;
           lock_release(&scan_lock);
-          printf("try_frame_alloc_and_lock: exiting empty frame case\n");
+          //printf("try_frame_alloc_and_lock: exiting empty frame case\n");
           return f;
         }
       }
     }
   }
 
-  printf("try_frame_alloc_and_lock: after first for loop\n");
+  //printf("try_frame_alloc_and_lock: after first for loop\n");
 
   /* at this point, we believe that all frames are held */
 
@@ -90,16 +101,16 @@ try_frame_alloc_and_lock (struct page *page)
   if(p == NULL)
     return f;
 
-    printf("try_frame_alloc_and_lock: past assertions, about to try second print\n");
+  //printf("try_frame_alloc_and_lock: past assertions, about to try second print\n");
   /* p should not be NULL since we held the scan lock above
     and no page had NULL */
 
-  printf("try_frame_alloc_and_lock: p: %p f: %p p->thread: %p &p->thread->pagedir %p p->thread->pagedir %p\n", p, f, p->thread, &p->thread->pagedir, p->thread->pagedir);
+  printf("try_frame_alloc_and_lock: p: %p f: %p p->thread: %p p->thread->name: %s\n\t\t&p->thread->pagedir %p p->thread->pagedir %p\n", p, f, p->thread, p->thread->name, &p->thread->pagedir, p->thread->pagedir);
   if(p->thread->pagedir && pagedir_is_dirty(p->thread->pagedir, p->addr))
   {
 
     printf("try_frame_alloc_and_lock: after pagedir_is_dirty\n");
-    if(p->private)
+    if(/* p->private */ 1)
     {
 
       printf("try_frame_alloc_and_lock: entered non-mmap case\n");
@@ -132,7 +143,7 @@ try_frame_alloc_and_lock (struct page *page)
   }
   else if (p->read_only && p->file != NULL)
   {
-    printf("try_frame_alloc_and_lock: after pagedir_is_dirty\n");
+    //printf("try_frame_alloc_and_lock: after pagedir_is_dirty\n");
     printf("try_frame_alloc_and_lock: entered read_only from file case\n");
     p->frame == NULL; /* safe to do since scan lock and frame lock are held */
     if(p->thread->pagedir)
@@ -141,7 +152,7 @@ try_frame_alloc_and_lock (struct page *page)
     }
     else
     {
-      printf("huh\n");
+      printf("try_frame_alloc_and_lock: null pagedir in huh\n");
     }
     f->page = page;
     page->frame = f;
@@ -151,7 +162,7 @@ try_frame_alloc_and_lock (struct page *page)
   }
   else
   {
-    printf("try_frame_alloc_and_lock: after pagedir_is_dirty\n");
+    //printf("try_frame_alloc_and_lock: after pagedir_is_dirty\n");
     printf("try_frame_alloc_and_lock: entered catch-all case\n");
 
     if(!swap_out(p))
@@ -165,7 +176,7 @@ try_frame_alloc_and_lock (struct page *page)
     printf("try_frame_alloc_and_lock: exiting catch-all case\n");
     return f;
   }
-  printf("hih\n");
+  printf("try_frame_alloc_and_lock: huh\n");
 
   lock_release(&f->lock);
 
@@ -181,9 +192,6 @@ frame_lock (struct frame *f)
   lock_acquire(&f->lock);
 }
 
-// should this take in a page or a frame? I am not sure. 
-// frame might make sense, since we could have multiple read only pages that
-// point to this frame? I dunno...
 void 
 frame_free (struct frame *f)
 {
@@ -193,10 +201,9 @@ frame_free (struct frame *f)
   }
   lock_acquire(&scan_lock);
   lock_acquire(&f->lock);
-  if(f != NULL)
+  if(f->page != NULL)
   {
-    if(f->page != NULL)
-      f->page->frame = NULL;
+    f->page->frame = NULL;
     f->page = NULL;
   }
   lock_release(&f->lock);
@@ -219,7 +226,7 @@ struct frame *perform_LRU()
   {
     //printf("loop\n");
     struct page *p = frames[hand].page;
-    if(p==NULL || p->thread->pagedir==NULL/* || is_kernel_vaddr(p->addr) */)
+    if( p == NULL || p->thread->pagedir == NULL /* || is_kernel_vaddr(p->addr) */)
     {
       //printf("LRU: page is null case\n");
       hand++;
@@ -227,16 +234,17 @@ struct frame *perform_LRU()
       {
         hand = 0;
       }
+      /* if page is NULL, we should return this frame */
       if(hand == 0)
-	{
-	  frame_lock(&frames[frame_cnt-1]);
-	  return &frames[frame_cnt-1];
-	}
+    	{
+    	  frame_lock(&frames[frame_cnt-1]);
+    	  return &frames[frame_cnt-1];
+    	}
       else
-	{
-	  frame_lock(&frames[hand-1]);
-	  return &frames[hand-1];
-	}
+    	{
+    	  frame_lock(&frames[hand-1]);
+    	  return &frames[hand-1];
+    	}
       
       continue;
     }
@@ -287,9 +295,111 @@ struct frame *perform_LRU()
     }
   }
 
-  if(ret != NULL && !lock_held_by_current_thread(&ret->lock))
+  if(ret != NULL /* && !lock_held_by_current_thread(&ret->lock) */)
   {
     frame_lock(ret);
   }
   return ret;
+}
+
+
+
+
+
+
+
+
+
+struct frame*
+try_frame_alloc_and_lock_2 (struct page *page)
+{
+
+  //printf("try_frame_alloc_and_lock_2: entered\n");
+
+  int i;
+  struct frame *f;
+  //bool success;
+  //if(!lock_held_by_current_thread(&scan_lock))
+  //{
+    lock_acquire(&scan_lock);
+  //}
+  
+  for(i = 0; i < frame_cnt; i++)
+  {
+    f = &frames[i];
+    if(f->page == NULL)
+    {  
+      if(!lock_held_by_current_thread(&f->lock) && lock_try_acquire(&f->lock))
+      {
+          f->page = page;
+          page->frame = f;
+          lock_release(&scan_lock);
+          return f;
+      }
+    }
+  }
+
+  /* at this point, we believe that all frames are held */
+
+  /* f is locked when this returns */
+  f = perform_LRU();
+  //printf("try_frame_alloc_and_lock_2: after LRU\n");
+
+  ASSERT(f != NULL);
+  struct page *p = f->page;
+  
+  if(p == NULL)
+  {
+    PANIC("try_frame_alloc_and_lock_2: after LRU f->page is NULL. bizarre.\n");
+    f->page = page;
+    page->frame = f;
+    lock_release(&scan_lock);
+    return f;
+  }
+  ASSERT(p->frame == f);
+  //printf("try_frame_alloc_and_lock_2: p: %p f: %p p->thread: %p p->thread->name: %s\n\t\t&p->thread->pagedir %p p->thread->pagedir %p\n", p, f, p->thread, p->thread->name, &p->thread->pagedir, p->thread->pagedir);
+
+  ASSERT(p->thread->pagedir != NULL);
+  switch(p->type)
+  {
+    case PAGET_STACK:
+    case PAGET_DATA:
+      swap_out(p);
+      ASSERT(p->frame == NULL);
+      f->page = page;
+      page->frame = f;
+      lock_release(&scan_lock);
+      return f;
+      break;
+    case PAGET_MMAP:
+      if(pagedir_is_dirty(p->thread->pagedir, p->addr))
+        file_write_at (p->file, p->frame->base, p->file_bytes, p->file_offset); 
+      pagedir_clear_page (p->thread->pagedir, p->addr);
+      memset(f->base, 0, PGSIZE);
+      p->frame = NULL;
+      f->page = page;
+      page->frame = f;
+      lock_release(&scan_lock);
+      return f;
+      break;
+    case PAGET_READONLY: /* file is guaranteed to be nonnull */
+      pagedir_clear_page (p->thread->pagedir, p->addr);
+      memset(f->base, 0, PGSIZE);
+      p->frame = NULL;
+      f->page = page;
+      page->frame = f;
+      lock_release(&scan_lock);
+      return f;
+      break;
+    default:
+      PANIC("try_frame_alloc_and_lock_2: reached an undefined page type...");
+      break;
+  }
+  
+
+  lock_release(&f->lock);
+  lock_release(&scan_lock);
+
+  PANIC("try_frame_alloc_and_lock_2: WE NEED ADDITIONAL LOGIC AFTER LRU");
+  return NULL;
 }

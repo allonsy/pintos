@@ -15,13 +15,14 @@ struct frame
   struct page *page;          /* Mapped process page, if any. */
 };
 
-
 void frame_init(void);
-struct frame* try_frame_alloc_and_lock (struct page *page);
-//struct frame* try_frame_alloc_and_lock (void);
+//struct frame* try_frame_alloc_and_lock (struct page *page);
+struct frame* try_frame_alloc_and_lock_2 (struct page *page);
 void frame_lock (struct frame *f);
 void frame_free (struct frame *f);
 void frame_unlock (struct frame *f);
+void lock_scan(void);
+void unlock_scan(void);
 struct frame *perform_LRU(void);
 
 #endif /* VM_FRAME_H */
