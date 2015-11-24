@@ -172,7 +172,7 @@ page_fault (struct intr_frame *f)
      (#PF)". */
   asm ("movl %%cr2, %0" : "=r" (fault_addr));
 
-  printf("page_fault: entered with fault address %p\n", fault_addr);
+  //printf("page_fault: entered with fault address %p\n", fault_addr);
 
   /* Turn interrupts back on (they were only off so that we could
      be assured of reading CR2 before it changed). */
@@ -233,7 +233,7 @@ page_fault (struct intr_frame *f)
   }
   else
   {
-    printf("page_fault: %s writing to read only memory at %p\n", user ? "user" : "kernel", fault_addr);
+    //printf("page_fault: %s writing to read only memory at %p\n", user ? "user" : "kernel", fault_addr);
     except_exit();
   }
 
