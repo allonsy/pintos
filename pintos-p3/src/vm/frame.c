@@ -15,7 +15,6 @@ static struct lock scan_lock;
 static size_t hand;
 
 static struct frame *perform_LRU(void);
-static struct frame *perform_LRU_2(void);
 static struct frame *randomEvict(void);
 
 void
@@ -72,20 +71,17 @@ try_frame_alloc_and_lock (struct page *page)
 
   /* at this point, we believe that all frames are held */
   /* f is locked when this returns */
-  //f = perform_LRU();
+  f = perform_LRU();
   //f = randomEvict();
-  f = perform_LRU_2 ();
 
   ASSERT(f != NULL);
   struct page *p = f->page;
   
   if(p == NULL)
   {
-    //PANIC("try_frame_alloc_and_lock_2: after LRU f->page is NULL. bizarre.\n");
     f->page = page;
     page->frame = f;
     lock_release(&scan_lock);
-    //printf("try_frame_alloc_and_lock: exiting\n");
     return f;
   }
   ASSERT(p->frame == f);
@@ -95,13 +91,13 @@ try_frame_alloc_and_lock (struct page *page)
     case PAGET_DATA:
       if(p->thread->pagedir != NULL && p->thread->pagedir != 0xcccccccc)
       {
-        swap_out(p);
+        if(!swap_out(p))
+          PANIC("SWAP SPACE FULL");
         ASSERT(p->frame == NULL);
       }
       f->page = page;
       page->frame = f;
       lock_release(&scan_lock);
-      //printf("try_frame_alloc_and_lock: exiting\n");
       return f;
       break;
     case PAGET_MMAP:
@@ -116,7 +112,6 @@ try_frame_alloc_and_lock (struct page *page)
       f->page = page;
       page->frame = f;
       lock_release(&scan_lock);
-      //printf("try_frame_alloc_and_lock: exiting\n");
       return f;
       break;
     case PAGET_READONLY: /* file is guaranteed to be nonnull */
@@ -129,7 +124,6 @@ try_frame_alloc_and_lock (struct page *page)
       f->page = page;
       page->frame = f;
       lock_release(&scan_lock);
-      //printf("try_frame_alloc_and_lock: exiting\n");
       return f;
       break;
     default:
@@ -180,80 +174,6 @@ frame_unlock (struct frame *f)
 }
 
 struct frame *perform_LRU()
-{
-  struct frame *ret=NULL;
-  int didChange = 0;
-  int top = hand;
-  int oneshot = 0;
-  while(ret == NULL)
-  {
-    //printf("loop\n");
-    struct page *p = frames[hand].page;
-    if(p==NULL /* || is_kernel_vaddr(p->addr) */)
-    {
-      hand++;
-      if(hand >= frame_cnt)
-      {
-        hand = 0;
-      }
-      continue;
-    }
-
-    uint32_t *cur_pagedir = p->thread->pagedir;
-    //printf("acc: %ld dirty: %ld\n", pagedir_is_accessed(cur_pagedir, p->addr), pagedir_is_dirty(cur_pagedir, p->addr));
-    if(cur_pagedir && !pagedir_is_accessed(cur_pagedir, p->addr))
-    {
-      // if(!pagedir_is_dirty(cur_pagedir, p->addr))
-      // {
-       ret = &frames[hand];
-     //  }
-     //  else
-     //  {
-     //   if(oneshot)
-     //   {
-     //     ret = &frames[hand];
-     //   }
-     // }
-    }
-    else if(cur_pagedir)
-    {
-      pagedir_set_accessed(cur_pagedir, p->addr, 0);
-      didChange = 1;
-    }
-    hand++;
-    if(hand >= frame_cnt)
-    {
-      hand = 0;
-    }
-    if(hand == top)
-    {
-      if(didChange)
-      {
-        didChange = 0;
-      }
-      else
-      {
-        oneshot = 1;
-      }
-    }
-  }
-
-  if(ret != NULL && !lock_held_by_current_thread(&ret->lock))
-  {
-    frame_lock(ret);
-  }
-  return ret;
-}
-
-
-struct frame *randomEvict()
-{
-  int i = random_ulong () % frame_cnt;
-  frame_lock(&frames[i]);
-  return &frames[i];
-}
-
-struct frame *perform_LRU_2()
 {
   struct frame *ret=NULL;
   int didChange = 0;
@@ -326,3 +246,12 @@ struct frame *perform_LRU_2()
   }
   return ret;
 }
+
+
+struct frame *randomEvict()
+{
+  int i = random_ulong () % frame_cnt;
+  frame_lock(&frames[i]);
+  return &frames[i];
+}
+

@@ -146,7 +146,6 @@ swap_out (struct page *p)
   if(bit_idx == BITMAP_ERROR)
   {
     frame_unlock(p->frame); 
-    lock_release(&swap_lock);
     return false;
   }
 
