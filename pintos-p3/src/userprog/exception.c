@@ -212,7 +212,7 @@ page_fault (struct intr_frame *f)
       {
         struct page *p = page_allocate(fault_addr, false, PAGET_STACK);
         p->file = NULL;
-        p->read_only = 0;
+        p->read_only = false;
         if(p != NULL)
         {
           t->num_extensions++;
@@ -229,8 +229,28 @@ page_fault (struct intr_frame *f)
       }
       else
       {
-        PANIC("page_fault: kernel faulting on %p with frame address %p\n", fault_addr, f);
-        except_exit();
+        void *pg_above_addr = pg_round_down(fault_addr) + PGSIZE;
+        struct page *p3 = page_for_addr (pg_above_addr);
+
+        if(p3 == NULL)
+        {
+          printf("page_fault: hitting except exit\n");
+          except_exit();
+        } else {
+          struct page *p = page_allocate(fault_addr, false, PAGET_STACK);
+          p->file = NULL;
+          p->read_only = false;
+          if(p != NULL)
+          {
+            t->num_extensions++;
+            if(!page_in_2(fault_addr))
+              PANIC("page_fault: unable to page in successfully");
+            return;
+          }
+        }
+
+
+        PANIC("page_fault: kernel faulting on %p with stack_ptr_swizzle: %p current_thread->stack: %p f->esp: %p\n", fault_addr, stack_ptr_swizzle, t->stack, f->esp);
       }
     }
     if(is_user_vaddr(fault_addr) && !page_in_2(fault_addr))
