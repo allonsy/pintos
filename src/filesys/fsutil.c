@@ -38,7 +38,7 @@ fsutil_cat (char **argv)
   char *buffer;
 
   printf ("Printing '%s' to the console...\n", file_name);
-  file = file_open (filesys_open (file_name));
+  file = file_open (filesys_open (file_name)->inode);
   if (file == NULL)
     PANIC ("%s: open failed", file_name);
   buffer = palloc_get_page (PAL_ASSERT);
@@ -120,7 +120,7 @@ fsutil_extract (char **argv UNUSED)
           /* Create destination file. */
           if (!filesys_create (file_name, size, FILE_INODE))
             PANIC ("%s: create failed", file_name);
-          dst = file_open (filesys_open (file_name));
+          dst = file_open (filesys_open (file_name)->inode);
           if (dst == NULL)
             PANIC ("%s: open failed", file_name);
 
@@ -182,7 +182,7 @@ fsutil_append (char **argv)
     PANIC ("couldn't allocate buffer");
 
   /* Open source file. */
-  src = file_open (filesys_open (file_name));
+  src = file_open (filesys_open (file_name)->inode);
   if (src == NULL)
     PANIC ("%s: open failed", file_name);
   size = file_length (src);
