@@ -462,7 +462,7 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
         init_indirect_sector(&data->sectors[offsets[0]]);
         indirect_block = cache_lock(data->sectors[offsets[0]], NON_EXCLUSIVE);
         blocks = (block_sector_t *) cache_read(indirect_block);
-        if(allocate_sector(&blocks[offsets[1]])
+        if(allocate_sector(&blocks[offsets[1]]))
         {
           *data_block = cache_lock(blocks[offsets[1]], EXCLUSIVE);
         }
@@ -492,7 +492,7 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
         init_indirect_sector(&ind_blocks[offsets[1]]);
         indirect_block = cache_lock(ind_blocks[offsets[1]], EXCLUSIVE);
         blocks = cache_read(indirect_block);
-        if(allocate_sector(&blocks[offsets[2]])
+        if(allocate_sector(&blocks[offsets[2]]))
         {
           *data_block = cache_lock(blocks[offsets[2]], EXCLUSIVE);
         }
