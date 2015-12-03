@@ -99,7 +99,7 @@ inode_create (block_sector_t sector, enum inode_type type)
   /* If this assertion fails, the inode structure is not exactly
      one sector in size, and you should fix that. */
 
-  struct cache_block *block = cache_lock (sector, NON_EXCLUSIVE);
+  struct cache_block *block = cache_lock (sector, EXCLUSIVE);
   if(block == NULL)
     return false;
 
@@ -113,7 +113,6 @@ inode_create (block_sector_t sector, enum inode_type type)
   for(i = 0; i < SECTOR_CNT; i++)
     disk_inode->sectors[i] = INVALID_SECTOR;
 
-  /* I think we do this? */
   cache_unlock(block);
 
   return true;
@@ -177,9 +176,11 @@ inode_open (block_sector_t sector)
   lock_release(&open_inodes_lock);
   lock_init(&inode->deny_write_lock);
   lock_init(&inode->lock);
+  cond_init (&inode->no_writers_cond);
   inode->sector = sector;
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
+  inode->writer_cnt = 0;
   inode->removed = false;
   /* I am not sure we need to do anything else here. I think we can lazily
     allocate a cache block when we are reading from the inode 
@@ -678,11 +679,10 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 
   /* Don't write if writes are denied. */
   lock_acquire (&inode->deny_write_lock);
-  if (inode->deny_write_cnt) 
-    {
-      lock_release (&inode->deny_write_lock);
-      return 0;
-    }
+  while(inode->deny_write_cnt) 
+  {
+    cond_wait (&inode->no_writers_cond, &inode->deny_write_lock);
+  }
   inode->writer_cnt++;
   lock_release (&inode->deny_write_lock);
 

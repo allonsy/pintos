@@ -19,12 +19,19 @@ struct file
 struct inode *
 file_create (block_sector_t sector, off_t length) 
 {
-  // ....
-  // inode_create (sector, FILE_INODE);
-  // inode_write_at (...)
-  // ....
+  if(!inode_create (sector, FILE_INODE))
+    return NULL;
+  struct inode *inode = inode_open(sector);
 
-  return NULL;
+  if(inode)
+  {
+    uint8_t *buf = malloc(length);
+    memset(buf, 0, length);
+    inode_write_at(inode, buf, length, 0);
+    free(buf);
+  }
+
+  return inode;
 }
 
 
