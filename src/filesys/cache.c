@@ -146,14 +146,15 @@ cache_lock (block_sector_t sector, enum lock_type type)
 
   if(i != -1)
   {
-    cache[i].sector = sector;
+    struct cache_block *cb = &cache[i];
+    cb->sector = sector;
     cb->readers = type == EXCLUSIVE ? 0 : 1;
     cb->read_waiters = 0;
     cb->writers = type == EXCLUSIVE ? 1 : 0;
     cb->write_waiters = 0;
     cb->up_to_date = false;
     cb->dirty = false;
-    lock_release(&cache[i].block_lock);
+    lock_release(&cb->block_lock);
     lock_release(&cache_sync);
     return &cache[i];
   }
