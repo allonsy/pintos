@@ -66,6 +66,10 @@ struct cache_block *
 cache_lock (block_sector_t sector, enum lock_type type) 
 {
 
+  /* need this for some inode functions */
+  if(sector == INVALID_SECTOR)
+    return NULL;
+
   int i;
 
   try_again:

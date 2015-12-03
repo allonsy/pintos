@@ -213,7 +213,7 @@ inode_get_type (const struct inode *inode)
 
   ASSERT(inode != NULL);
 
-  struct cache_block *block = cache_lock(inode->sector);
+  struct cache_block *block = cache_lock(inode->sector, NON_EXCLUSIVE);
   struct inode_disk *data = (struct inode_disk *) cache_read(block);
   enum inode_type type = data->type;
   cache_unlock(block);
@@ -259,12 +259,13 @@ inode_close (struct inode *inode)
   lock_release (&open_inodes_lock);
 }
 
+/* returns true if it allocated the sector, false if it didn't */
 static bool
 allocate_sector(block_sector_t *sectorp)
 {
   if(*sectorp == INVALID_SECTOR && free_map_allocate(sectorp))
   {
-    struct cache_block *block = cache_lock(*sectorp);
+    struct cache_block *block = cache_lock(*sectorp, NON_EXCLUSIVE);
     uint8_t *data = (uint8_t *) cache_read(block);
     memset(data, 0, BLOCK_SECTOR_SIZE);
     cache_unlock(block);
@@ -284,7 +285,7 @@ deallocate_recursive (block_sector_t sector, int level)
   if(sector == INVALID_SECTOR)
     return;
 
-  struct cache_block *block = cache_lock(sector);
+  struct cache_block *block = cache_lock(sector, EXCLUSIVE);
   block_sector_t *sectors;
   int i;
 
@@ -323,7 +324,7 @@ deallocate_inode (const struct inode *inode)
   struct inode_disk *data;
   int i;
 
-  block = cache_lock(inode->sector);
+  block = cache_lock(inode->sector, EXCLUSIVE);
   data = (struct inode_disk *) cache_read(block);
 
   for(i = 0; i < DIRECT_CNT; i++)
@@ -402,7 +403,7 @@ init_indirect_sector(block_sector_t *sectorp)
 {
   if(*sectorp == INVALID_SECTOR && free_map_allocate(sectorp))
   {
-    struct cache_block *block = cache_lock(*sectorp);
+    struct cache_block *block = cache_lock(*sectorp, EXCLUSIVE);
     uint8_t *data = (uint8_t *) cache_read(block);
     memset(data, ~0, BLOCK_SECTOR_SIZE);
     cache_unlock(block);
@@ -424,12 +425,14 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
   off_t logical_sector = offset / BLOCK_SECTOR_SIZE;
   size_t offsets[3];
   size_t offset_cnt;
-  struct cache_block *block;
+  struct cache_block *block, *indirect_block, *dbl_indirect_block;
   struct inode_disk *data;
+  block_sector_t *blocks, *ind_blocks;
+  bool success = false;
 
   calculate_indices(logical_sector, offsets, &offset_cnt);
 
-  block = cache_lock(inode->sector);
+  block = cache_lock(inode->sector, NON_EXCLUSIVE);
   data = (struct inode_disk *) cache_read(block);
 
   switch(offset_cnt)
@@ -437,21 +440,84 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
     case 1:
       if(allocate)
       {
-        allocate_sector(&data->sectors[offsets[0]]);
-        *data_block = cache_lock(data->sectors[offsets[0]]);
+        if(allocate_sector(&data->sectors[offsets[0]]))
+          *data_block = cache_lock(data->sectors[offsets[0]], EXCLUSIVE);
+        else
+          *data_block = cache_lock(data->sectors[offsets[0]], NON_EXCLUSIVE);
+        success = true;
       }
       else
       {
-        *data_block = cache_lock(data->sectors[offsets[0]]);
+        *data_block = cache_lock(data->sectors[offsets[0]], NON_EXCLUSIVE);
+        success = *data_block != NULL;
+      }
+      break;
+    case 2;
+      if(allocate)
+      {
+        init_indirect_sector(&data->sectors[offsets[0]]);
+        indirect_block = cache_lock(data->sectors[offsets[0]], NON_EXCLUSIVE);
+        blocks = (block_sector_t *) cache_read(indirect_block);
+        if(allocate_sector(&blocks[offsets[1]])
+          *data_block = cache_lock(blocks[offsets[1]], EXCLUSIVE);
+        else
+          *data_block = cache_lock(blocks[offsets[1]], NON_EXCLUSIVE);
+        cache_unlock(data->sectors[offsets[0]]);
+        success = true;
+      }
+      else
+      {
+        if(data->sectors[offsets[0]] != INVALID_SECTOR)
+        {
+          indirect_block = cache_lock(data->sectors[offsets[0]], NON_EXCLUSIVE);
+          blocks = (block_sector_t *) cache_read(indirect_block);
+          *data_block = cache_lock(blocks[offsets[1]], NON_EXCLUSIVE);
+          success = *data_block != NULL;
+        } 
+      }
+    case 3:
+      if(allocate)
+      {
+        init_indirect_sector(&data->sectors[offsets[0]]);
+        dbl_indirect_block = cache_lock(data->sectors[offsets[0]], EXCLUSIVE);
+        ind_blocks = (block_sector_t *) cache_read(dbl_indirect_block);
+        init_indirect_sector(&ind_blocks[offsets[1]]);
+        indirect_block = cache_lock(ind_blocks[offsets[1]], EXCLUSIVE);
+        blocks = cache_read(indirect_block);
+        if(allocate_sector(&blocks[offsets[2]])
+          *data_block = cache_lock(blocks[offsets[2]], EXCLUSIVE);
+        else
+          *data_block = cache_lock(blocks[offsets[2]], NON_EXCLUSIVE);
+        cache_unlock(indirect_block);
+        cache_unlock(dbl_indirect_block);
+        success = true;
+      }
+      else
+      {
+        if(data->sectors[offsets[0]] != INVALID_SECTOR)
+        {
+          dbl_indirect_block = cache_lock(data->sectors[offsets[0]], NON_EXCLUSIVE);
+          ind_blocks = (block_sector_t *) cache_read(dbl_indirect_block);
+          if(ind_blocks[offsets[1]] != INVALID_SECTOR)
+          {
+            indirect_block = cache_lock(ind_blocks[offsets[1]], NON_EXCLUSIVE);
+            blocks = cache_read(indirect_block);
+            *data_block = (block_sector_t *) cache_lock(blocks[offsets[2]], NON_EXCLUSIVE);
+            cache_unlock(indirect_block);
+            success = *data_block != NULL;
+          }
+          cache_unlock(dbl_indirect_block);
+        }
       }
 
       break;
+    default:
+      break;
   }
 
+  cache_unlock(block);
 
-
-  
-
+  return success;
 }
 
 /* Reads SIZE bytes from INODE into BUFFER, starting at position OFFSET.
@@ -518,7 +584,7 @@ extend_file (struct inode *inode, off_t length)
   bool third_while = false;
 
 
-  block = cache_lock(inode->sector);
+  block = cache_lock(inode->sector, EXCLUSIVE);
   data = (struct inode_disk *) cache_read(block);
 
   while(offset < length && i < DIRECT_CNT)
@@ -533,7 +599,7 @@ extend_file (struct inode *inode, off_t length)
   {  
     /* will only create a new sector if there is no valid indirect sector */
     init_indirect_sector(&data->sectors[DIRECT_CNT]);
-    struct cache_block *indirect_block = cache_lock(data->sectors[DIRECT_CNT]);
+    struct cache_block *indirect_block = cache_lock(data->sectors[DIRECT_CNT], EXCLUSIVE);
     block_sector_t *blocks = (block_sector_t *) cache_read(indirect_block);
     j = 0;
     second_while = true;
@@ -557,7 +623,7 @@ extend_file (struct inode *inode, off_t length)
   if(offset < length)
   {
     init_indirect_sector(&data->sectors[DIRECT_CNT+1]);
-    struct cache_block *dbl_indirect_block = cache_lock(data->sectors[DIRECT_CNT+1]);
+    struct cache_block *dbl_indirect_block = cache_lock(data->sectors[DIRECT_CNT+1], EXCLUSIVE);
     block_sector_t *ind_blocks = (block_sector_t *) cache_read(dbl_indirect_block);
     j = 0;
     third_while = true;
@@ -566,7 +632,7 @@ extend_file (struct inode *inode, off_t length)
   while(offset < length && i < MAX_DBL_INDIRECT_SECTOR && j < PTRS_PER_SECTOR)
   {
     init_indirect_sector(&ind_blocks[j]);
-    struct cache_block *indirect_block = cache_lock(&ind_blocks[j]);
+    struct cache_block *indirect_block = cache_lock(&ind_blocks[j], EXCLUSIVE);
     block_sector_t *blocks = (block_sector_t *) cache_read(indirect_block);
     k = 0;
     while(offset < length && k < PTRS_PER_SECTOR)
@@ -587,6 +653,7 @@ extend_file (struct inode *inode, off_t length)
 
   data->length = offset;
 
+  cache_unlock(block);
 }
 
 /* Writes SIZE bytes from BUFFER into INODE, starting at OFFSET.
@@ -676,7 +743,7 @@ inode_allow_write (struct inode *inode)
 off_t
 inode_length (const struct inode *inode)
 {
-  struct cache_block *block = cache_lock(inode->sector);
+  struct cache_block *block = cache_lock(inode->sector, NON_EXCLUSIVE);
   struct inode_disk *data = (struct inode_disk *) cache_read(block);
   off_t length = data->length;
   cache_unlock(block);
