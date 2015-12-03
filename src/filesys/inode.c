@@ -255,6 +255,8 @@ inode_close (struct inode *inode)
       }
 
     free (inode); 
+    lock_release(&open_inodes_lock);
+    return; /* can't release inode lock after freeing */
   }
   lock_release(&inode->lock);
   lock_release (&open_inodes_lock);
