@@ -572,8 +572,9 @@ extend_file (struct inode *inode, off_t length)
   /* maybe shouldn't be an assertion? */
   ASSERT(length <= INODE_SPAN);
 
-  struct cache_block *block, block2;
+  struct cache_block *block, *indirect_block, *dbl_indirect_block;
   struct inode_disk *data;
+  block_sector_t *blocks, *ind_blocks;
   uint8_t *data2;
   int i = 0;
   int j, k;
@@ -599,8 +600,8 @@ extend_file (struct inode *inode, off_t length)
   {  
     /* will only create a new sector if there is no valid indirect sector */
     init_indirect_sector(&data->sectors[DIRECT_CNT]);
-    struct cache_block *indirect_block = cache_lock(data->sectors[DIRECT_CNT], EXCLUSIVE);
-    block_sector_t *blocks = (block_sector_t *) cache_read(indirect_block);
+    indirect_block = cache_lock(data->sectors[DIRECT_CNT], EXCLUSIVE);
+    blocks = (block_sector_t *) cache_read(indirect_block);
     j = 0;
     second_while = true;
   }
@@ -623,8 +624,8 @@ extend_file (struct inode *inode, off_t length)
   if(offset < length)
   {
     init_indirect_sector(&data->sectors[DIRECT_CNT+1]);
-    struct cache_block *dbl_indirect_block = cache_lock(data->sectors[DIRECT_CNT+1], EXCLUSIVE);
-    block_sector_t *ind_blocks = (block_sector_t *) cache_read(dbl_indirect_block);
+    dbl_indirect_block = cache_lock(data->sectors[DIRECT_CNT+1], EXCLUSIVE);
+    ind_blocks = (block_sector_t *) cache_read(dbl_indirect_block);
     j = 0;
     third_while = true;
   }
@@ -632,8 +633,8 @@ extend_file (struct inode *inode, off_t length)
   while(offset < length && i < MAX_DBL_INDIRECT_SECTOR && j < PTRS_PER_SECTOR)
   {
     init_indirect_sector(&ind_blocks[j]);
-    struct cache_block *indirect_block = cache_lock(&ind_blocks[j], EXCLUSIVE);
-    block_sector_t *blocks = (block_sector_t *) cache_read(indirect_block);
+    indirect_block = cache_lock(&ind_blocks[j], EXCLUSIVE);
+    blocks = (block_sector_t *) cache_read(indirect_block);
     k = 0;
     while(offset < length && k < PTRS_PER_SECTOR)
     {
