@@ -178,6 +178,7 @@ cache_lock (block_sector_t sector, enum lock_type type)
 
 
   lock_release (&cache_sync);
+  PANIC("about to sleep");
   timer_msleep (100);
   goto try_again;
 
