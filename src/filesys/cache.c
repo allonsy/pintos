@@ -83,16 +83,28 @@ cache_lock (block_sector_t sector, enum lock_type type)
     if(cb->sector == sector)
     {
       /* do stuff like locking n shit */
+      /* probably do a lock try aqcuire? */
+      if(lock_try_acquire(NULL /* which lock?? */))
+      {
+
+        lock_release(&cache_sync);
+        return cb;
+      }
     }
   }
 
   /* Not in cache.  Find empty slot. */
 
+  i = find_free_block();
 
+  if(i != -1)
+  {
+    
+  }
+  else /* No empty slots.  Evict something. */
+  {
 
-  /* No empty slots.  Evict something. */
-
-
+  }
 
 
   /* Wait for cache contention to die down. */
@@ -145,7 +157,10 @@ cache_zero (struct cache_block *b)
 void
 cache_dirty (struct cache_block *b) 
 {
-  // ...
+  /* may need more here? */
+  lock_acquire(&b->block_lock);
+  b->dirty = true;
+  lock_release(&b->block_lock);
 }
 
 /* Unlocks block B.
@@ -196,7 +211,8 @@ flushd (void *aux UNUSED)
 int
 find_free_block()
 {
-  lock_acquire(&cache_sync);
+  /* assuming for now that this is called with lock already held */
+  //lock_acquire(&cache_sync);
   int i;
   for(i = 0; i<CACHE_CNT; i++)
   {
@@ -207,6 +223,6 @@ find_free_block()
       return i;
     }
   }
-  lock_release(&cache_sync);
+  //lock_release(&cache_sync);
   return -1;
 }
