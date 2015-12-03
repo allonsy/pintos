@@ -9,21 +9,6 @@
 
 #define INVALID_SECTOR ((block_sector_t) -1)
 
-
-struct cache_block 
-  {
-    struct lock block_lock;
-    struct condition no_readers_or_writers;
-    struct condition no_writers;           
-    int readers, read_waiters;
-    int writers, write_waiters;
-    block_sector_t sector;
-    bool up_to_date;
-    bool dirty;
-    struct lock data_lock; 
-    uint8_t data[BLOCK_SECTOR_SIZE];   
-  };
-
 /* Cache. */
 #define CACHE_CNT 64
 struct cache_block cache[CACHE_CNT];

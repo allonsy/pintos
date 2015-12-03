@@ -146,17 +146,18 @@ inode_open (block_sector_t sector)
 
   /* Check whether this inode is already open. */
 
-
-  for (e = list_begin (&open_inodes); e != list_end (&open_inodes);
-       e = list_next (e)) 
-    {
-      inode = list_entry (e, struct inode, elem);
-      if (inode->sector == sector) 
-        {
-          inode_reopen (inode);
-          return inode; 
-        }
-    }
+  lock_acquire(&open_inodes_lock);
+  for (e = list_begin (&open_inodes); e != list_end (&open_inodes); e = list_next (e)) 
+  {
+    inode = list_entry (e, struct inode, elem);
+    if (inode->sector == sector) 
+      {
+        inode_reopen (inode);
+        lock_release(&open_inodes_lock);
+        return inode; 
+      }
+  }
+  lock_release(&open_inodes_lock);
 
   /* Allocate memory. */
   inode = malloc (sizeof *inode);
@@ -164,12 +165,22 @@ inode_open (block_sector_t sector)
     return NULL;
 
   /* Initialize. */
+  lock_acquire(&open_inodes_lock);
   list_push_front (&open_inodes, &inode->elem);
+  lock_init(&inode->deny_write_lock);
+  lock_init(&inode->lock);
   inode->sector = sector;
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
-  block_read (fs_device, inode->sector, &inode->data);
+  /* I am not sure we need to do anything else here. I think we can lazily
+    allocate a cache block when we are reading from the inode 
+
+    IF WE NEED THIS:
+    I think this should be nonexclusive since we are just opening the file 
+   */
+  //struct cache_block *cb = cache_lock (block_sector_t sector, NON_EXCLUSIVE);
+  //block_read (fs_device, inode->sector, &inode->data);
   return inode;
 }
 
@@ -178,11 +189,11 @@ struct inode *
 inode_reopen (struct inode *inode)
 {
   if (inode != NULL)
-    {
-      lock_acquire (&open_inodes_lock);
-      inode->open_cnt++;
-      lock_release (&open_inodes_lock);
-    }
+  {
+    lock_acquire (&inode->lock);
+    inode->open_cnt++;
+    lock_release (&inode->lock);
+  }
   return inode;
 }
 
@@ -204,23 +215,27 @@ inode_close (struct inode *inode)
     return;
 
   /* Release resources if this was the last opener. */
+  /* have to have list lock on the outside to prevent deadlock
+    see inode_open for why */
+  lock_acquire (&open_inodes_lock);
+  lock_acquire(&inode->lock);
   if (--inode->open_cnt == 0)
-    {
-      /* Remove from inode list and release lock. */
-      lock_acquire (&open_inodes_lock);
-      list_remove (&inode->elem);
-      lock_release (&open_inodes_lock);
- 
-      /* Deallocate blocks if removed. */
-      if (inode->removed) 
-        {
-          free_map_release (inode->sector, 1);
-          free_map_release (inode->data.start,
-                            bytes_to_sectors (inode->data.length)); 
-        }
+  {
+    /* Remove from inode list and release lock. */
+    list_remove (&inode->elem);
 
-      free (inode); 
-    }
+    /* Deallocate blocks if removed. */
+    if (inode->removed) 
+      {
+        free_map_release (inode->sector, 1);
+        free_map_release (inode->data.start,
+                          bytes_to_sectors (inode->data.length)); 
+      }
+
+    free (inode); 
+  }
+  lock_release(&inode->lock);
+  lock_release (&open_inodes_lock);
 }
 
 /* Marks INODE to be deleted when it is closed by the last caller who
