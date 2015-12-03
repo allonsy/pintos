@@ -41,6 +41,7 @@ void
 cache_init (void) 
 {
   int i;
+  lock_init(&cache_sync);
 
   for(i = 0; i < CACHE_CNT; i++)
   {
@@ -77,13 +78,26 @@ cache_flush (void)
 struct cache_block *
 cache_lock (block_sector_t sector, enum lock_type type) 
 {
- //  int i;
 
- // try_again:
+  int i;
+
+  try_again:
 
   /* Is the block already in-cache? */
 
+  lock_acquire(&cache_sync);
+  for(i = 0; i < CACHE_CNT; i++)
+  {
+    struct cache_block *cb = &cache[i];
+    if(cb->sector == sector)
+    {
+      /* do stuff like locking n shit */
+    }
+  }
+
   /* Not in cache.  Find empty slot. */
+
+
 
   /* No empty slots.  Evict something. */
 
@@ -99,9 +113,9 @@ cache_lock (block_sector_t sector, enum lock_type type)
   // release the cache_sync lock, and sleep for 1 sec, and
   // try again the whole operation.
 
-  // lock_release (&cache_sync);
-  // timer_msleep (1000);
-  // goto try_again;
+  lock_release (&cache_sync);
+  timer_msleep (1000);
+  goto try_again;
 
   return NULL;
 }
