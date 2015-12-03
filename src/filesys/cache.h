@@ -2,6 +2,7 @@
 #define FILESYS_CACHE_H
 
 #include "devices/block.h"
+#include "threads/synch.h"
 
 /* Type of block lock. */
 enum lock_type 
