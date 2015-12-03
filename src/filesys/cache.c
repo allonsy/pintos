@@ -21,7 +21,20 @@ static void flushd_init (void);
 static void readaheadd_init (void);
 static void readaheadd_submit (block_sector_t sector);
 
-
+static void
+lock_cache(void)
+{
+  printf("lock_cache: entered\n");
+  lock_acquire(&cache_sync);
+  printf("lock_cache: exiting\n");
+}
+static void
+unlock_cache(void)
+{
+  printf("unlock_cache: entered\n");
+  lock_release(&cache_sync);
+  printf("unlock_cache: exiting\n");
+}
 /* Initializes cache. */
 void
 cache_init (void) 
@@ -52,7 +65,7 @@ void
 cache_flush (void) 
 {
   int i;
-  lock_acquire(&cache_sync);
+  lock_cache();
   for(i = 0; i < CACHE_CNT; i++)
   {
     struct cache_block *b = &cache[i];
@@ -66,7 +79,7 @@ cache_flush (void)
     //lock_release(&b->block_lock);
   }
   
-  lock_release(&cache_sync);
+  unlock_cache();
 }
 
 
@@ -80,9 +93,9 @@ cache_lock_helper(struct cache_block *cb, enum lock_type type)
     cb->is_free = false;
     while(cb->writers || cb->readers)
     {
-      lock_release(&cache_sync);
+      unlock_cache();
       cond_wait(&cb->no_readers_or_writers, &cb->block_lock);
-      lock_acquire(&cache_sync);
+      lock_cache();
     }
     cb->write_waiters--;
     cb->writers++;
@@ -93,9 +106,9 @@ cache_lock_helper(struct cache_block *cb, enum lock_type type)
     cb->is_free = false; 
     while(cb->writers)
     {
-      lock_release(&cache_sync);
+      unlock_cache();
       cond_wait(&cb->no_writers, &cb->block_lock);
-      lock_acquire(&cache_sync);
+      lock_cache();
     }
     cb->readers++;
     cb->read_waiters--;
@@ -114,11 +127,14 @@ struct cache_block *
 cache_lock (block_sector_t sector, enum lock_type type) 
 {
 
-  //PANIC("entered cache_lock");
+  printf("cache_lock: entered with type %s\n", type == EXCLUSIVE ? "EXCLUSIVE" : "NON_EXCLUSIVE");
 
   /* need this for some inode functions */
   if(sector == INVALID_SECTOR)
+  {
+    PANIC("cache_lock: INVALID_SECTOR passed in");
     return NULL;
+  }
 
   int i;
 
@@ -126,24 +142,29 @@ cache_lock (block_sector_t sector, enum lock_type type)
 
   /* Is the block already in-cache? */
 
-  lock_acquire(&cache_sync);
+  printf("cache_lock: checking to see if sector %d is in cache\n", sector);
+
+  lock_cache();
   for(i = 0; i < CACHE_CNT; i++)
   {
     struct cache_block *cb = &cache[i];
-    lock_acquire(&cb->block_lock);
+    //lock_acquire(&cb->block_lock);
     if(cb->sector == sector)
     { 
-      cache_lock_helper(cb, type);
-      lock_release(&cb->block_lock);
-      lock_release(&cache_sync);
+      //cache_lock_helper(cb, type);
+      if(!lock_held_by_current_thread(&cb->data_lock))
+        lock_acquire(&cb->data_lock);
+      //lock_release(&cb->block_lock);
+      unlock_cache();
+      printf("cache_lock: returning the in cache case\n");
       return cb;
     }
-    lock_release(&cb->block_lock);
+    //lock_release(&cb->block_lock);
   }
 
   /* Not in cache.  Find empty slot. */
 
-  //PANIC("made it past thing in cache");
+  printf("cache_lock: sector %d not in cache\n", sector);
 
   /* cache[i] is locked when i is returned */
   i = find_free_block();
@@ -159,8 +180,10 @@ cache_lock (block_sector_t sector, enum lock_type type)
     cb->up_to_date = false;
     cb->dirty = false;
     //lock_release(&cb->block_lock);
-    lock_release(&cache_sync);
+    lock_acquire(&cb->data_lock);
+    unlock_cache();
     //PANIC("found a free block");
+    printf("cache_lock: returning the free block case\n");
     return &cache[i];
   }
   else /* No empty slots.  Evict something. */
@@ -168,7 +191,9 @@ cache_lock (block_sector_t sector, enum lock_type type)
     PANIC("cache_lock: haven't implemented this yet lololol");
   }
 
-  PANIC("found a free block");
+  unlock_cache();
+
+  PANIC("no free blocks");
 
   /* Wait for cache contention to die down. */
 
@@ -181,9 +206,9 @@ cache_lock (block_sector_t sector, enum lock_type type)
 
 
 
-  lock_release (&cache_sync);
-  PANIC("about to sleep");
-  timer_msleep (100);
+
+  //PANIC("about to sleep");
+  //timer_msleep (100);
   goto try_again;
 
   return NULL;
@@ -198,9 +223,9 @@ cache_read (struct cache_block *b)
 {
   /* do we need anything else here?? */
   //lock_acquire(&b->block_lock);
-  lock_data(b);
+  //lock_data(b);
   block_read (fs_device, b->sector, b->data);
-  unlock_data(b);
+  //unlock_data(b);
   b->up_to_date = true;
   //lock_release(&b->block_lock);
   return (void *) b->data;
@@ -249,43 +274,45 @@ void
 cache_unlock (struct cache_block *b, enum lock_type type) 
 {
   /* may not be necessary to hold cache sync lock */
-  lock_acquire(&cache_sync);
-  lock_acquire(&b->block_lock);
-  if(type == EXCLUSIVE) /* I assume this means writing? */
-  {
-    b->writers--; /* should be zero now */
-    if(b->writers == 0)
-    {
-      if(b->readers == 0)
-      {
-        cond_signal(&b->no_readers_or_writers, &b->block_lock);
-        cond_signal(&b->no_writers, &b->block_lock);
-      }
-      else
-      {
-        cond_signal(&b->no_writers, &b->block_lock);
-      }
-    }
-  }
-  else
-  {
-    b->readers--;
-    if(b->writers == 0)
-    {
-      if(b->readers == 0)
-      {
-        cond_signal(&b->no_readers_or_writers, &b->block_lock);
-        cond_signal(&b->no_writers, &b->block_lock);
-      }
-      else
-      {
-        cond_signal(&b->no_writers, &b->block_lock);
-      }
-    }
-  }
-  cache_unlock_freer(b);
-  lock_release(&b->block_lock);
-  lock_release (&cache_sync);
+  lock_cache();
+  //lock_acquire(&b->block_lock);
+  // if(type == EXCLUSIVE) /* I assume this means writing? */
+  // {
+  //   b->writers--; /* should be zero now */
+  //   if(b->writers == 0)
+  //   {
+  //     if(b->readers == 0)
+  //     {
+  //       cond_signal(&b->no_readers_or_writers, &b->block_lock);
+  //       cond_signal(&b->no_writers, &b->block_lock);
+  //     }
+  //     else
+  //     {
+  //       cond_signal(&b->no_writers, &b->block_lock);
+  //     }
+  //   }
+  // }
+  // else
+  // {
+  //   b->readers--;
+  //   if(b->writers == 0)
+  //   {
+  //     if(b->readers == 0)
+  //     {
+  //       cond_signal(&b->no_readers_or_writers, &b->block_lock);
+  //       cond_signal(&b->no_writers, &b->block_lock);
+  //     }
+  //     else
+  //     {
+  //       cond_signal(&b->no_writers, &b->block_lock);
+  //     }
+  //   }
+  // }
+  if(lock_held_by_current_thread(&b->data_lock))
+    lock_release(&b->data_lock);
+  //cache_unlock_freer(b);
+  //lock_release(&b->block_lock);
+  unlock_cache();
   return;
 }
 
@@ -326,7 +353,8 @@ flushd (void *aux UNUSED)
 {
   for (;;) 
     {
-      timer_msleep (30 * 1000);
+      printf("for some reason this function is running\n");
+      //timer_msleep (30 * 1000);
       cache_flush ();
     }
 }
@@ -339,7 +367,7 @@ int
 find_free_block()
 {
   /* assuming for now that this is called with cache_sync already held */
-  //lock_acquire(&cache_sync);
+  //lock_cache();
   int i;
   for(i = 0; i<CACHE_CNT; i++)
   {
@@ -347,10 +375,10 @@ find_free_block()
     {
       cache[i].is_free=false;
       //lock_acquire(&cache[i].block_lock);
-      //lock_release(&cache_sync);
+      //unlock_cache();
       return i;
     }
   }
-  //lock_release(&cache_sync);
+  //unlock_cache();
   return -1;
 }
