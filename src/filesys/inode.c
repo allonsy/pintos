@@ -642,7 +642,7 @@ extend_file (struct inode *inode, off_t length)
   while(offset < length && i < MAX_DBL_INDIRECT_SECTOR && j < PTRS_PER_SECTOR)
   {
     init_indirect_sector(&ind_blocks[j]);
-    indirect_block = cache_lock(&ind_blocks[j], EXCLUSIVE);
+    indirect_block = cache_lock(ind_blocks[j], EXCLUSIVE);
     blocks = (block_sector_t *) cache_read(indirect_block);
     k = 0;
     while(offset < length && k < PTRS_PER_SECTOR)
