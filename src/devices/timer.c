@@ -92,11 +92,11 @@ timer_elapsed (int64_t then)
 
 /* Wakeup time comparison function for ordered insert into sleeping list */
 bool
-compare_wake_up(const struct list_elem *a, const struct list_elem *b, void *aux)
+compare_wake_up(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
 { 
   struct thread *threadA = list_entry(a, struct thread, sleepelem);
   struct thread *threadB = list_entry(b, struct thread, sleepelem); 
-  return threadA->wakeup_time < threadB->wakeup_time;
+  return (threadA->wakeup_time < threadB->wakeup_time);
 }
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */

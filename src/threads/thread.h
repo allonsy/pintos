@@ -113,6 +113,10 @@ struct thread
 
     struct semaphore timer_sema;
 
+    struct list_elem sleepelem;
+
+    int64_t wakeup_time;
+
     /*End Added by Student */
 
     /* Owned by thread.c. */
