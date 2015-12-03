@@ -9,6 +9,7 @@
 
 #define INVALID_SECTOR ((block_sector_t) -1)
 
+
 /* Cache. */
 #define CACHE_CNT 64
 struct cache_block cache[CACHE_CNT];
@@ -41,6 +42,7 @@ cache_init (void)
     cb->sector = INVALID_SECTOR;
     cb->up_to_date = false;
     cb->dirty = false;
+    cb->is_free = true;
     lock_init(&cb->data_lock);
   }
 }
@@ -181,4 +183,26 @@ flushd (void *aux UNUSED)
       timer_msleep (30 * 1000);
       cache_flush ();
     }
+}
+
+
+//returns the index of the first free block
+//returns -1 if full
+//thread-safe
+int
+find_free_block()
+{
+  lock_acquire(&cache_sync);
+  int i;
+  for(i = 0; i<CACHE_CNT; i++)
+  {
+    if(cache[i].is_free)
+    {
+      cache[i].is_free=false;
+      lock_release(&cache_sync);
+      return i;
+    }
+  }
+  lock_release(&cache_sync);
+  return -1;
 }
