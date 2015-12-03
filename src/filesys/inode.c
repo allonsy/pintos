@@ -250,9 +250,9 @@ inode_close (struct inode *inode)
 
     /* Deallocate blocks if removed. */
     if (inode->removed) 
-      {
-        deallocate_inode(inode);
-      }
+    {
+      deallocate_inode(inode);
+    }
 
     free (inode); 
     lock_release(&open_inodes_lock);

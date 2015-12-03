@@ -326,7 +326,7 @@ find_free_block()
     if(cache[i].is_free)
     {
       cache[i].is_free=false;
-      lock_release(&cache_sync);
+      //lock_release(&cache_sync);
       return i;
     }
   }
