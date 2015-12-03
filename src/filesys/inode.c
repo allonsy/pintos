@@ -801,7 +801,7 @@ inode_length (const struct inode *inode)
   struct cache_block *block = cache_lock(inode->sector, NON_EXCLUSIVE);
   struct inode_disk *data = (struct inode_disk *) cache_read(block);
   off_t length = data->length;
-  cache_unlock(block);
+  cache_unlock(block, NON_EXCLUSIVE);
   return length;
 }
 

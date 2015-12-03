@@ -51,6 +51,7 @@ cache_init (void)
 void
 cache_flush (void) 
 {
+  int i;
   lock_acquire(&cache_sync);
   for(i = 0; i < CACHE_CNT; i++)
   {
