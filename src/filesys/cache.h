@@ -22,6 +22,7 @@ enum lock_type
     block_sector_t sector;
     bool up_to_date;
     bool dirty;
+    bool is_free;
     struct lock data_lock; 
     uint8_t data[BLOCK_SECTOR_SIZE];   
   };
