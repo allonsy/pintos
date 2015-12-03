@@ -139,17 +139,27 @@ cache_lock (block_sector_t sector, enum lock_type type)
 
   /* Not in cache.  Find empty slot. */
 
-  PANIC("haven't implemented this yet lololol");
+  
 
+  /* cache[i] is locked when i is returned */
   i = find_free_block();
 
   if(i != -1)
   {
-
+    cache[i].sector = sector;
+    cb->readers = type == EXCLUSIVE ? 0 : 1;
+    cb->read_waiters = 0;
+    cb->writers = type == EXCLUSIVE ? 1 : 0;
+    cb->write_waiters = 0;
+    cb->up_to_date = false;
+    cb->dirty = false;
+    lock_release(&cache[i].block_lock);
+    lock_release(&cache_sync);
+    return &cache[i];
   }
   else /* No empty slots.  Evict something. */
   {
-
+    PANIC("haven't implemented this yet lololol");
   }
 
 
@@ -328,6 +338,7 @@ find_free_block()
     if(cache[i].is_free)
     {
       cache[i].is_free=false;
+      lock_acquire(&cache[i].block_lock);
       //lock_release(&cache_sync);
       return i;
     }
