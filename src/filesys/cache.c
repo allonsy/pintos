@@ -293,12 +293,12 @@ cache_free (block_sector_t sector)
 
 void lock_data(struct cache_block *b)
 {
-  lock_acquire(&b->data_lock);
+  //lock_acquire(&b->data_lock);
 }
 
 void unlock_data(struct cache_block *b)
 {
-  lock_release(&b->data_lock);
+  //lock_release(&b->data_lock);
 }
 
 
