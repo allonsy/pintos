@@ -111,6 +111,8 @@ struct thread
 
     struct thread *parent;
 
+    struct semaphore timer_sema;
+
     /*End Added by Student */
 
     /* Owned by thread.c. */

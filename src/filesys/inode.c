@@ -1,14 +1,29 @@
 #include "filesys/inode.h"
+#include <bitmap.h>
 #include <list.h>
 #include <debug.h>
 #include <round.h>
+#include <stdio.h>
 #include <string.h>
+#include "filesys/cache.h"
 #include "filesys/filesys.h"
 #include "filesys/free-map.h"
 #include "threads/malloc.h"
+#include "threads/synch.h"
 
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
+
+#define DIRECT_CNT 123
+#define INDIRECT_CNT 1
+#define DBL_INDIRECT_CNT 1
+#define SECTOR_CNT (DIRECT_CNT + INDIRECT_CNT + DBL_INDIRECT_CNT)
+
+#define PTRS_PER_SECTOR ((off_t) (BLOCK_SECTOR_SIZE / sizeof (block_sector_t)))
+#define INODE_SPAN ((DIRECT_CNT                                              \
+                     + PTRS_PER_SECTOR * INDIRECT_CNT                        \
+                     + PTRS_PER_SECTOR * PTRS_PER_SECTOR * DBL_INDIRECT_CNT) \
+                    * BLOCK_SECTOR_SIZE)
 
 /* On-disk inode.
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
@@ -20,6 +35,8 @@ struct inode_disk
     uint32_t unused[125];               /* Not used. */
   };
 
+
+
 /* Returns the number of sectors to allocate for an inode SIZE
    bytes long. */
 static inline size_t
@@ -28,15 +45,22 @@ bytes_to_sectors (off_t size)
   return DIV_ROUND_UP (size, BLOCK_SECTOR_SIZE);
 }
 
-/* In-memory inode. */
+
+  /* In-memory inode. */
 struct inode 
   {
     struct list_elem elem;              /* Element in inode list. */
     block_sector_t sector;              /* Sector number of disk location. */
     int open_cnt;                       /* Number of openers. */
     bool removed;                       /* True if deleted, false otherwise. */
+    struct lock lock;                   /* Protects the inode. */
+    struct inode_disk data;             /* Inode content. THIS IS TEMPORARY FOR BACKWARDS COMPATIBILITY */
+
+    /* Denying writes. */
+    struct lock deny_write_lock;        /* Protects members below. */
+    struct condition no_writers_cond;   /* Signaled when no writers. */ 
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
-    struct inode_disk data;             /* Inode content. */
+    int writer_cnt;                     /* Number of writers. */
   };
 
 /* Returns the block device sector that contains byte offset POS
@@ -57,11 +81,17 @@ byte_to_sector (const struct inode *inode, off_t pos)
    returns the same `struct inode'. */
 static struct list open_inodes;
 
+/* Controls access to open_inodes list. */
+static struct lock open_inodes_lock;
+
+static void deallocate_inode (const struct inode *);
+
 /* Initializes the inode module. */
 void
 inode_init (void) 
 {
   list_init (&open_inodes);
+  lock_init (&open_inodes_lock);
 }
 
 /* Initializes an inode with LENGTH bytes of data and
@@ -70,7 +100,7 @@ inode_init (void)
    Returns true if successful.
    Returns false if memory or disk allocation fails. */
 bool
-inode_create (block_sector_t sector, off_t length)
+inode_create (block_sector_t sector, off_t length, enum inode_type type UNUSED)
 {
   struct inode_disk *disk_inode = NULL;
   bool success = false;
@@ -115,6 +145,8 @@ inode_open (block_sector_t sector)
   struct inode *inode;
 
   /* Check whether this inode is already open. */
+
+
   for (e = list_begin (&open_inodes); e != list_end (&open_inodes);
        e = list_next (e)) 
     {
@@ -146,7 +178,11 @@ struct inode *
 inode_reopen (struct inode *inode)
 {
   if (inode != NULL)
-    inode->open_cnt++;
+    {
+      lock_acquire (&open_inodes_lock);
+      inode->open_cnt++;
+      lock_release (&open_inodes_lock);
+    }
   return inode;
 }
 
@@ -171,7 +207,9 @@ inode_close (struct inode *inode)
   if (--inode->open_cnt == 0)
     {
       /* Remove from inode list and release lock. */
+      lock_acquire (&open_inodes_lock);
       list_remove (&inode->elem);
+      lock_release (&open_inodes_lock);
  
       /* Deallocate blocks if removed. */
       if (inode->removed) 
@@ -322,8 +360,10 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 void
 inode_deny_write (struct inode *inode) 
 {
+  lock_acquire(&inode->deny_write_lock);
   inode->deny_write_cnt++;
   ASSERT (inode->deny_write_cnt <= inode->open_cnt);
+  lock_release(&inode->deny_write_lock);
 }
 
 /* Re-enables writes to INODE.
@@ -332,9 +372,11 @@ inode_deny_write (struct inode *inode)
 void
 inode_allow_write (struct inode *inode) 
 {
+  lock_acquire(&inode->deny_write_lock);
   ASSERT (inode->deny_write_cnt > 0);
   ASSERT (inode->deny_write_cnt <= inode->open_cnt);
   inode->deny_write_cnt--;
+  lock_release(&inode->deny_write_lock);
 }
 
 /* Returns the length, in bytes, of INODE's data. */

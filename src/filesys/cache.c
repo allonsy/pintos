@@ -40,6 +40,23 @@ static void readaheadd_submit (block_sector_t sector);
 void
 cache_init (void) 
 {
+  int i;
+
+  for(i = 0; i < CACHE_CNT; i++)
+  {
+    struct cache_block *cb = &cache[i];
+    lock_init(&cb->block_lock);
+    cond_init(&cb->no_readers_or_writers);
+    cond_init(&cb->no_writers);
+    cb->readers = 0;
+    cb->read_waiters = 0;
+    cb->writers = 0;
+    cb->write_waiters = 0;
+    cb->sector = INVALID_SECTOR;
+    cb->up_to_date = false;
+    cb->dirty = false;
+    lock_init(&cb->data_lock);
+  }
 }
 
 /* Flushes cache to disk. */
@@ -60,9 +77,9 @@ cache_flush (void)
 struct cache_block *
 cache_lock (block_sector_t sector, enum lock_type type) 
 {
-  int i;
+ //  int i;
 
- try_again:
+ // try_again:
 
   /* Is the block already in-cache? */
 
@@ -82,9 +99,11 @@ cache_lock (block_sector_t sector, enum lock_type type)
   // release the cache_sync lock, and sleep for 1 sec, and
   // try again the whole operation.
 
-  lock_release (&cache_sync);
-  timer_msleep (1000);
-  goto try_again;
+  // lock_release (&cache_sync);
+  // timer_msleep (1000);
+  // goto try_again;
+
+  return NULL;
 }
 
 /* Bring block B up-to-date, by reading it from disk if
@@ -97,6 +116,8 @@ cache_read (struct cache_block *b)
   // ...
   //      block_read (fs_device, b->sector, b->data);
   // ...
+
+  return NULL;
 }
 
 /* Zero out block B, without reading it from disk, and return a
@@ -109,6 +130,7 @@ cache_zero (struct cache_block *b)
   //  memset (b->data, 0, BLOCK_SECTOR_SIZE);
   // ...
 
+  return NULL;
 }
 
 /* Marks block B as dirty, so that it will be written back to
