@@ -111,7 +111,7 @@ inode_create (block_sector_t sector, enum inode_type type)
 
   int i;
   for(i = 0; i < SECTOR_CNT; i++)
-    disk_inode->sector[i] = INVALID_SECTOR;
+    disk_inode->sectors[i] = INVALID_SECTOR;
 
   /* I think we do this? */
   cache_unlock(block);
@@ -452,7 +452,7 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
         success = *data_block != NULL;
       }
       break;
-    case 2;
+    case 2:
       if(allocate)
       {
         init_indirect_sector(&data->sectors[offsets[0]]);
