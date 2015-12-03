@@ -513,7 +513,7 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
           if(ind_blocks[offsets[1]] != INVALID_SECTOR)
           {
             indirect_block = cache_lock(ind_blocks[offsets[1]], NON_EXCLUSIVE);
-            blocks = cache_read(indirect_block);
+            blocks = (block_sector_t*) cache_read(indirect_block);
             *data_block = cache_lock(blocks[offsets[2]], NON_EXCLUSIVE);
             cache_unlock(indirect_block);
             success = *data_block != NULL;
