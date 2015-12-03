@@ -274,6 +274,8 @@ allocate_sector(block_sector_t *sectorp)
     cache_unlock(block, NON_EXCLUSIVE);
     return true;
   }
+  if(*sectorp == INVALID_SECTOR)
+    PANIC("allocate_sector: free_map_allocate failed");
   return false;
 }
 
