@@ -56,19 +56,21 @@ cache_flush (void)
   for(i = 0; i < CACHE_CNT; i++)
   {
     struct cache_block *b = &cache[i];
-    lock_acquire(&b->block_lock);
+    //lock_acquire(&b->block_lock);
     if(b->dirty)
     {
       lock_data(b);
       block_write (fs_device, b->sector, b->data);
       unlock_data(b);
     }
-    lock_release(&b->block_lock);
+    //lock_release(&b->block_lock);
   }
   
   lock_release(&cache_sync);
 }
 
+
+/* block lock is assumed to be held */
 static void
 cache_lock_helper(struct cache_block *cb, enum lock_type type)
 {
@@ -154,13 +156,13 @@ cache_lock (block_sector_t sector, enum lock_type type)
     cb->write_waiters = 0;
     cb->up_to_date = false;
     cb->dirty = false;
-    lock_release(&cb->block_lock);
+    //lock_release(&cb->block_lock);
     lock_release(&cache_sync);
     return &cache[i];
   }
   else /* No empty slots.  Evict something. */
   {
-    PANIC("haven't implemented this yet lololol");
+    PANIC("cache_lock: haven't implemented this yet lololol");
   }
 
 
@@ -176,7 +178,7 @@ cache_lock (block_sector_t sector, enum lock_type type)
 
 
   lock_release (&cache_sync);
-  timer_msleep (1000);
+  timer_msleep (100);
   goto try_again;
 
   return NULL;
@@ -339,7 +341,7 @@ find_free_block()
     if(cache[i].is_free)
     {
       cache[i].is_free=false;
-      lock_acquire(&cache[i].block_lock);
+      //lock_acquire(&cache[i].block_lock);
       //lock_release(&cache_sync);
       return i;
     }
