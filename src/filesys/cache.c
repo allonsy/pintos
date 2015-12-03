@@ -189,12 +189,12 @@ void *
 cache_read (struct cache_block *b) 
 {
   /* do we need anything else here?? */
-  lock_acquire(&b->block_lock);
+  //lock_acquire(&b->block_lock);
   lock_data(b);
   block_read (fs_device, b->sector, b->data);
   unlock_data(b);
   b->up_to_date = true;
-  lock_release(&b->block_lock);
+  //lock_release(&b->block_lock);
   return (void *) b->data;
 }
 
@@ -219,9 +219,9 @@ void
 cache_dirty (struct cache_block *b) 
 {
   /* may need more here? */
-  lock_acquire(&b->block_lock);
+  //lock_acquire(&b->block_lock);
   b->dirty = true;
-  lock_release(&b->block_lock);
+  //lock_release(&b->block_lock);
 }
 
 /* marks block as free if there are no readers or writers or waiters 
@@ -330,7 +330,7 @@ flushd (void *aux UNUSED)
 int
 find_free_block()
 {
-  /* assuming for now that this is called with lock already held */
+  /* assuming for now that this is called with cache_sync already held */
   //lock_acquire(&cache_sync);
   int i;
   for(i = 0; i<CACHE_CNT; i++)
