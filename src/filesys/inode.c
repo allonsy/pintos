@@ -603,7 +603,9 @@ extend_file (struct inode *inode, off_t length)
   while(offset < length && i < DIRECT_CNT)
   {
     /* only allocates if the sector number is invalid */
+    lock_data(block);
     allocate_sector(&data->sectors[i]);
+    unlock_data(block);
     offset += BLOCK_SECTOR_SIZE;
     i++;
   }
@@ -611,7 +613,9 @@ extend_file (struct inode *inode, off_t length)
   if(offset < length)
   {  
     /* will only create a new sector if there is no valid indirect sector */
+    lock_data(block);
     init_indirect_sector(&data->sectors[DIRECT_CNT]);
+    unlock_data(block);
     indirect_block = cache_lock(data->sectors[DIRECT_CNT], EXCLUSIVE);
     blocks = (block_sector_t *) cache_read(indirect_block);
     j = 0;
@@ -622,7 +626,9 @@ extend_file (struct inode *inode, off_t length)
     technically the i condition implies the j condition, but let us be safe here */
   while(offset < length && i < MAX_INDIRECT_SECTOR && j < PTRS_PER_SECTOR)
   {
+    lock_data(indirect_block);
     allocate_sector(&blocks[j]);
+    unlock_data(indirect_block);
     j++;
     i++;
     offset += BLOCK_SECTOR_SIZE;
@@ -635,7 +641,9 @@ extend_file (struct inode *inode, off_t length)
 
   if(offset < length)
   {
+    lock_data(block);
     init_indirect_sector(&data->sectors[DIRECT_CNT+1]);
+    unlock_data(block);
     dbl_indirect_block = cache_lock(data->sectors[DIRECT_CNT+1], EXCLUSIVE);
     ind_blocks = (block_sector_t *) cache_read(dbl_indirect_block);
     j = 0;
@@ -644,13 +652,17 @@ extend_file (struct inode *inode, off_t length)
 
   while(offset < length && i < MAX_DBL_INDIRECT_SECTOR && j < PTRS_PER_SECTOR)
   {
+    lock_data(dbl_indirect_block);
     init_indirect_sector(&ind_blocks[j]);
+    unlock_data(dbl_indirect_block);
     indirect_block = cache_lock(ind_blocks[j], EXCLUSIVE);
     blocks = (block_sector_t *) cache_read(indirect_block);
     k = 0;
     while(offset < length && k < PTRS_PER_SECTOR)
     {
+      lock_data(indirect_block);
       allocate_sector(&blocks[j]);
+      unlock_data(indirect_block);
       k++;
       i++;
       offset += BLOCK_SECTOR_SIZE;
