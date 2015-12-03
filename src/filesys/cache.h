@@ -11,6 +11,8 @@ enum lock_type
     EXCLUSIVE		/* Only one locker. */
   };
 
+  /* this comment added for commit reasons */
+
 
  struct cache_block 
   {
