@@ -114,6 +114,8 @@ struct cache_block *
 cache_lock (block_sector_t sector, enum lock_type type) 
 {
 
+  //PANIC("entered cache_lock");
+
   /* need this for some inode functions */
   if(sector == INVALID_SECTOR)
     return NULL;
@@ -141,7 +143,7 @@ cache_lock (block_sector_t sector, enum lock_type type)
 
   /* Not in cache.  Find empty slot. */
 
-  
+  //PANIC("made it past thing in cache");
 
   /* cache[i] is locked when i is returned */
   i = find_free_block();
@@ -158,6 +160,7 @@ cache_lock (block_sector_t sector, enum lock_type type)
     cb->dirty = false;
     //lock_release(&cb->block_lock);
     lock_release(&cache_sync);
+    //PANIC("found a free block");
     return &cache[i];
   }
   else /* No empty slots.  Evict something. */
@@ -165,6 +168,7 @@ cache_lock (block_sector_t sector, enum lock_type type)
     PANIC("cache_lock: haven't implemented this yet lololol");
   }
 
+  PANIC("found a free block");
 
   /* Wait for cache contention to die down. */
 
