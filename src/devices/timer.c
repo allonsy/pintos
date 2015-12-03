@@ -103,18 +103,24 @@ compare_wake_up(const struct list_elem *a, const struct list_elem *b, void *aux 
 void
 timer_sleep (int64_t sleep_ticks) 
 {
-  enum intr_level old_level;
-  int64_t start;
-  struct thread *cur;
+  // enum intr_level old_level;
+  // int64_t start;
+  // struct thread *cur;
 
-  start = timer_ticks ();
-  cur = thread_current ();
-  cur->wakeup_time = start + sleep_ticks;
+  // start = timer_ticks ();
+  // cur = thread_current ();
+  // cur->wakeup_time = start + sleep_ticks;
 
-  old_level = intr_disable (); 
-  list_insert_ordered (&sleep_wait_list, &cur->sleepelem, &compare_wake_up, NULL);
-  sema_down(&cur->timer_sema);
-  intr_set_level (old_level);
+  // old_level = intr_disable (); 
+  // list_insert_ordered (&sleep_wait_list, &cur->sleepelem, &compare_wake_up, NULL);
+  // sema_down(&cur->timer_sema);
+  // intr_set_level (old_level);
+
+  int64_t start = timer_ticks ();
+
+  ASSERT (intr_get_level () == INTR_ON);
+  while (timer_elapsed (start) < ticks) 
+    thread_yield ();
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -191,24 +197,24 @@ timer_print_stats (void)
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
-  enum intr_level old_level = intr_disable ();
+  //enum intr_level old_level = intr_disable ();
   ticks++;
 
-  struct list_elem *e;
-  for(e=list_begin(&sleep_wait_list); e != list_end(&sleep_wait_list); e = list_next(e))
-  {
-    struct thread *cur = list_entry(e, struct thread, sleepelem);
-    if(cur->wakeup_time <= ticks)
-    {
-      sema_up(&cur->timer_sema);
-      list_remove(e);
-    }
-    else
-    {
-      break;
-    }
-  }
-  intr_set_level(old_level);
+  // struct list_elem *e;
+  // for(e=list_begin(&sleep_wait_list); e != list_end(&sleep_wait_list); e = list_next(e))
+  // {
+  //   struct thread *cur = list_entry(e, struct thread, sleepelem);
+  //   if(cur->wakeup_time <= ticks)
+  //   {
+  //     sema_up(&cur->timer_sema);
+  //     list_remove(e);
+  //   }
+  //   else
+  //   {
+  //     break;
+  //   }
+  // }
+  // intr_set_level(old_level);
   thread_tick ();
 }
 
