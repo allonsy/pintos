@@ -139,6 +139,8 @@ cache_lock (block_sector_t sector, enum lock_type type)
 
   /* Not in cache.  Find empty slot. */
 
+  PANIC("haven't implemented this yet lololol");
+
   i = find_free_block();
 
   if(i != -1)
