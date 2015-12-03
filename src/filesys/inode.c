@@ -441,9 +441,13 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
       if(allocate)
       {
         if(allocate_sector(&data->sectors[offsets[0]]))
+        {
           *data_block = cache_lock(data->sectors[offsets[0]], EXCLUSIVE);
+        }
         else
+        {
           *data_block = cache_lock(data->sectors[offsets[0]], NON_EXCLUSIVE);
+        }
         success = true;
       }
       else
@@ -459,9 +463,13 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
         indirect_block = cache_lock(data->sectors[offsets[0]], NON_EXCLUSIVE);
         blocks = (block_sector_t *) cache_read(indirect_block);
         if(allocate_sector(&blocks[offsets[1]])
+        {
           *data_block = cache_lock(blocks[offsets[1]], EXCLUSIVE);
+        }
         else
+        {
           *data_block = cache_lock(blocks[offsets[1]], NON_EXCLUSIVE);
+        }
         cache_unlock(data->sectors[offsets[0]]);
         success = true;
       }
@@ -485,9 +493,13 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
         indirect_block = cache_lock(ind_blocks[offsets[1]], EXCLUSIVE);
         blocks = cache_read(indirect_block);
         if(allocate_sector(&blocks[offsets[2]])
+        {
           *data_block = cache_lock(blocks[offsets[2]], EXCLUSIVE);
+        }
         else
+        {
           *data_block = cache_lock(blocks[offsets[2]], NON_EXCLUSIVE);
+        }
         cache_unlock(indirect_block);
         cache_unlock(dbl_indirect_block);
         success = true;
@@ -575,12 +587,9 @@ extend_file (struct inode *inode, off_t length)
   struct cache_block *block, *indirect_block, *dbl_indirect_block;
   struct inode_disk *data;
   block_sector_t *blocks, *ind_blocks;
-  uint8_t *data2;
   int i = 0;
   int j, k;
   off_t offset = 0;
-  size_t offset_cnt;
-  size_t offsets[3];
   bool second_while = false;
   bool third_while = false;
 

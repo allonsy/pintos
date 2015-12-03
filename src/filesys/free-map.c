@@ -3,6 +3,7 @@
 #include <debug.h>
 #include "filesys/file.h"
 #include "filesys/filesys.h"
+#include "filesys/inode.h"
 #include "threads/synch.h"
 
 static struct file *free_map_file;   /* Free map file. */
