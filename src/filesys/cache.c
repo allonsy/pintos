@@ -193,7 +193,7 @@ cache_lock (block_sector_t sector, enum lock_type type)
 
   unlock_cache();
 
-  PANIC("no free blocks");
+  //PANIC("no free blocks");
 
   /* Wait for cache contention to die down. */
 
@@ -207,8 +207,8 @@ cache_lock (block_sector_t sector, enum lock_type type)
 
 
 
-  //PANIC("about to sleep");
-  //timer_msleep (100);
+  PANIC("about to sleep");
+  timer_msleep (100);
   goto try_again;
 
   return NULL;

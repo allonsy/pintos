@@ -105,6 +105,8 @@ inode_create (block_sector_t sector, off_t length)
   bool success = false;
   void *data;
 
+  //printf("inode_create: sector %d length %d\n", sector, length);
+
   ASSERT (length >= 0);
 
   size_t sectors = bytes_to_sectors (length);
@@ -130,11 +132,11 @@ inode_create (block_sector_t sector, off_t length)
     success = true;
   }
 
-  printf("inode_create: before memcpy\n");
+  //printf("inode_create: before memcpy\n");
   if(success)
     memcpy(data, disk_inode, BLOCK_SECTOR_SIZE);
   //disk_inode->type = type;
-  printf("inode_create: after memcpy\n");
+  //printf("inode_create: after memcpy\n");
 
   cache_dirty(block);
   cache_unlock(block, EXCLUSIVE);
@@ -191,6 +193,8 @@ inode_open (block_sector_t sector)
   struct inode_disk *data = (struct inode_disk*) cache_read(b);
   inode->length = data->length;
   cache_unlock(b, EXCLUSIVE);
+
+  //printf("inode_open: sector %d length %d ptr %p\n", sector, inode->length, inode);
   /* I am not sure we need to do anything else here. I think we can lazily
     allocate a cache block when we are reading from the inode 
 
@@ -331,6 +335,12 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   char *data;
   struct cache_block *b;
 
+  //printf("inode ptr: %p sector: %d\n", inode, inode->sector);
+
+  ASSERT(inode != NULL);
+  off_t length = inode_length (inode);
+
+  //printf("inode_write_at: sector %u length %d\n", inode->sector, length);
   // if (inode->deny_write_cnt)
   //   return 0;
 
@@ -341,7 +351,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
-      off_t inode_left = inode_length (inode) - offset;
+      off_t inode_left = length - offset;
       int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
       int min_left = inode_left < sector_left ? inode_left : sector_left;
 
@@ -349,7 +359,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       int chunk_size = size < min_left ? size : min_left;
       if (chunk_size <= 0)
       {
-        printf("inode_write_at: chunk_size <= 0, bytes_written %d\n", bytes_written);
+        //printf("inode_write_at: chunk_size <= 0, bytes_written %d\n", bytes_written);
         break;
       }
 
