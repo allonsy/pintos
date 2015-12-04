@@ -39,6 +39,7 @@ struct inode
     bool removed;                       /* True if deleted, false otherwise. */
     struct lock lock;                   /* Protects the inode. */
     off_t length;
+    block_sector_t start;
 
     /* Denying writes. */
     struct lock deny_write_lock;        /* Protects members below. */
@@ -53,16 +54,14 @@ struct inode
 static block_sector_t
 byte_to_sector (const struct inode *inode, off_t pos) 
 {
-
-  struct cache_block *b = cache_lock(inode->sector, EXCLUSIVE);
-  struct inode_disk *data = (struct inode_disk *) cache_read(b);
-  cache_unlock(b, EXCLUSIVE);
-
   ASSERT (inode != NULL);
-  if (pos < data->length)
-    return data->start + pos / BLOCK_SECTOR_SIZE;
+  if (pos < inode->length)
+    return inode->start + pos / BLOCK_SECTOR_SIZE;
   else
+  {
+    //printf("byte_to_sector: failed. pos %d length %d\n", pos, inode->length);
     return -1;
+  }
 }
 
 /* List of open inodes, so that opening a single inode twice
@@ -135,8 +134,14 @@ inode_create (block_sector_t sector, off_t length)
   //printf("inode_create: before memcpy\n");
   if(success)
     memcpy(data, disk_inode, BLOCK_SECTOR_SIZE);
+
+  free(disk_inode);
   //disk_inode->type = type;
   //printf("inode_create: after memcpy\n");
+
+  disk_inode = (struct inode_disk *) cache_read(block);
+
+  //printf("inode_create: sector %d length %d start %d\n", sector, disk_inode->length, disk_inode->start);
 
   cache_dirty(block);
   cache_unlock(block, EXCLUSIVE);
@@ -192,9 +197,10 @@ inode_open (block_sector_t sector)
   struct cache_block *b = cache_lock(inode->sector, EXCLUSIVE);
   struct inode_disk *data = (struct inode_disk*) cache_read(b);
   inode->length = data->length;
+  inode->start = data->start;
   cache_unlock(b, EXCLUSIVE);
 
-  //printf("inode_open: sector %d length %d ptr %p\n", sector, inode->length, inode);
+  //printf("inode_open: sector %d length %d start %d ptr %p\n", sector, inode->length, inode->start, inode);
   /* I am not sure we need to do anything else here. I think we can lazily
     allocate a cache block when we are reading from the inode 
 
@@ -335,7 +341,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   char *data;
   struct cache_block *b;
 
-  //printf("inode ptr: %p sector: %d\n", inode, inode->sector);
+  //printf("inode ptr: %p sector: %d\n", inode, inode->sector, inode->length);
 
   ASSERT(inode != NULL);
   off_t length = inode_length (inode);
