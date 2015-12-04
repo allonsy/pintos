@@ -203,15 +203,28 @@ Did not do so.
 >> buffer cache block, how are other processes prevented from evicting
 >> that block?
 
-We check that the 
+We check that there are no readers or writers before we evict the block.
+If there are, we generate another random cache block to evict.
 
 >> C6: During the eviction of a block from the cache, how are other
 >> processes prevented from attempting to access the block?
+
+eviction and accessing are both handled in cache_lock, which is protected
+by the cache_sync lock, hence only one thread can do so at a time.
 
 ---- RATIONALE ----
 
 >> C7: Describe a file workload likely to benefit from buffer caching,
 >> and workloads likely to benefit from read-ahead and write-behind.
+
+Any workload that repeatedly accesses the same file, like a data base or something,
+would be good for buffer caching.
+
+Any work (changes) that get done with frequency on the same small blocks would benefit
+from write_behind since this reduces the IOs if there are many changes being made.
+
+Read ahead helps workloads like watching movies or listening to music, where
+sequential access of blocks is practically guaranteed.
 
 			   SURVEY QUESTIONS
 			   ================
@@ -225,14 +238,25 @@ the quarter.
 >> In your opinion, was this assignment, or any one of the three problems
 >> in it, too easy or too hard?  Did it take too long or too little time?
 
+This assignment was hard, but mostly I didn't start in time.
+
 >> Did you find that working on a particular part of the assignment gave
 >> you greater insight into some aspect of OS design?
+
+It was cool to see the parallels between VM and buffer cache, and how 
+cool solutions can be applied to several problems.
 
 >> Is there some particular fact or hint we should give students in
 >> future quarters to help them solve the problems?  Conversely, did you
 >> find any of our guidance to be misleading?
 
+Some of the guides were not clear, in particular on how the members
+of the cache_block were supposed to interact. 
+
 >> Do you have any suggestions for the TAs to more effectively assist
 >> students in future quarters?
 
 >> Any other comments?
+
+Really enjoyed this class, despite the multitude of hours in the lab. 
+To me, that is the signof a good course. 

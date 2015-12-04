@@ -200,8 +200,7 @@ cache_lock (block_sector_t sector, enum lock_type type)
     rand = rand % CACHE_CNT;
     struct cache_block *chosen_one = &cache[rand];
 
-    if(chosen_one->readers || chosen_one->writers || 
-      chosen_one->write_waiters || chosen_one->read_waiters)
+    if(chosen_one->readers || chosen_one->writers)
     {
       goto rand_segment:
     }
