@@ -150,7 +150,7 @@ cache_lock (block_sector_t sector, enum lock_type type)
   {
     struct cache_block *cb = &cache[i];
     //lock_acquire(&cb->block_lock);
-    if(cb->sector == sector)
+    if(cb->sector == dsector)
     { 
       //cache_lock_helper(cb, type);
       if(!lock_held_by_current_thread(&cb->data_lock))
@@ -190,13 +190,22 @@ cache_lock (block_sector_t sector, enum lock_type type)
   else /* No empty slots.  Evict something. */
   {
     int rand;
+
+    rand_segment:
     random_bytes(&rand, 1);
-    if(rand <0)
+    if(rand < 0)
     {
       rand = rand * (-1);
     }
     rand = rand % CACHE_CNT;
-    struct cache_block *chosen_one=&cache[rand];
+    struct cache_block *chosen_one = &cache[rand];
+
+    if(chosen_one->readers || chosen_one->writers || 
+      chosen_one->write_waiters || chosen_one->read_waiters)
+    {
+      goto rand_segment:
+    }
+
     if(chosen_one->dirty)
     {
       lock_acquire(&chosen_one->data_lock);
