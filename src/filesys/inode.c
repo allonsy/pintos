@@ -38,6 +38,7 @@ struct inode
     int open_cnt;                       /* Number of openers. */
     bool removed;                       /* True if deleted, false otherwise. */
     struct lock lock;                   /* Protects the inode. */
+    off_t length;
 
     /* Denying writes. */
     struct lock deny_write_lock;        /* Protects members below. */
@@ -100,12 +101,15 @@ inode_init (void)
 bool
 inode_create (block_sector_t sector, off_t length)
 {
-  struct inode_disk *disk_inode = NULL;
+  struct inode_disk *disk_inode = malloc(BLOCK_SECTOR_SIZE);
   bool success = false;
+  void *data;
 
   ASSERT (length >= 0);
 
   size_t sectors = bytes_to_sectors (length);
+
+  ASSERT(sizeof *disk_inode == BLOCK_SECTOR_SIZE);
 
  /* If this assertion fails, the inode structure is not exactly
      one sector in size, and you should fix that. */
@@ -116,7 +120,7 @@ inode_create (block_sector_t sector, off_t length)
     return false;
   }
 
-  disk_inode = (struct inode_disk *) cache_read(block);
+  data = cache_read(block);
 
   disk_inode->length = length;
   disk_inode->magic = INODE_MAGIC;
@@ -125,11 +129,12 @@ inode_create (block_sector_t sector, off_t length)
   {
     success = true;
   }
-  //disk_inode->type = type;
 
-  int i;
-  for(i = 0; i < 125; i++)
-    disk_inode->unused[i] = INVALID_SECTOR;
+  printf("inode_create: before memcpy\n");
+  if(success)
+    memcpy(data, disk_inode, BLOCK_SECTOR_SIZE);
+  //disk_inode->type = type;
+  printf("inode_create: after memcpy\n");
 
   cache_dirty(block);
   cache_unlock(block, EXCLUSIVE);
@@ -180,6 +185,12 @@ inode_open (block_sector_t sector)
   inode->deny_write_cnt = 0;
   inode->writer_cnt = 0;
   inode->removed = false;
+
+
+  struct cache_block *b = cache_lock(inode->sector, EXCLUSIVE);
+  struct inode_disk *data = (struct inode_disk*) cache_read(b);
+  inode->length = data->length;
+  cache_unlock(b, EXCLUSIVE);
   /* I am not sure we need to do anything else here. I think we can lazily
     allocate a cache block when we are reading from the inode 
 
@@ -320,8 +331,8 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   char *data;
   struct cache_block *b;
 
-  if (inode->deny_write_cnt)
-    return 0;
+  // if (inode->deny_write_cnt)
+  //   return 0;
 
   while (size > 0) 
     {
@@ -337,7 +348,10 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       /* Number of bytes to actually write into this sector. */
       int chunk_size = size < min_left ? size : min_left;
       if (chunk_size <= 0)
+      {
+        printf("inode_write_at: chunk_size <= 0, bytes_written %d\n", bytes_written);
         break;
+      }
 
       if (sector_ofs == 0 && chunk_size == BLOCK_SECTOR_SIZE)
         {
@@ -392,9 +406,9 @@ inode_allow_write (struct inode *inode)
 off_t
 inode_length (const struct inode *inode)
 {
-  struct cache_block *b = cache_lock(inode->sector, EXCLUSIVE);
-  struct inode_disk *data = (struct inode_disk*) cache_read(b);
-  off_t length = data->length;
-  cache_unlock(b, EXCLUSIVE);
-  return length;
+  // struct cache_block *b = cache_lock(inode->sector, EXCLUSIVE);
+  // struct inode_disk *data = (struct inode_disk*) cache_read(b);
+  // off_t length = data->length;
+  // cache_unlock(b, EXCLUSIVE);
+  return inode->length;
 }

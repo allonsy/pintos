@@ -24,16 +24,16 @@ static void readaheadd_submit (block_sector_t sector);
 static void
 lock_cache(void)
 {
-  printf("lock_cache: entered\n");
+  //printf("lock_cache: entered\n");
   lock_acquire(&cache_sync);
-  printf("lock_cache: exiting\n");
+  //printf("lock_cache: exiting\n");
 }
 static void
 unlock_cache(void)
 {
-  printf("unlock_cache: entered\n");
+  //printf("unlock_cache: entered\n");
   lock_release(&cache_sync);
-  printf("unlock_cache: exiting\n");
+  //printf("unlock_cache: exiting\n");
 }
 /* Initializes cache. */
 void
@@ -127,7 +127,7 @@ struct cache_block *
 cache_lock (block_sector_t sector, enum lock_type type) 
 {
 
-  printf("cache_lock: entered with type %s\n", type == EXCLUSIVE ? "EXCLUSIVE" : "NON_EXCLUSIVE");
+  //printf("cache_lock: entered with type %s\n", type == EXCLUSIVE ? "EXCLUSIVE" : "NON_EXCLUSIVE");
 
   /* need this for some inode functions */
   if(sector == INVALID_SECTOR)
@@ -142,7 +142,7 @@ cache_lock (block_sector_t sector, enum lock_type type)
 
   /* Is the block already in-cache? */
 
-  printf("cache_lock: checking to see if sector %d is in cache\n", sector);
+  //printf("cache_lock: checking to see if sector %d is in cache\n", sector);
 
   lock_cache();
   for(i = 0; i < CACHE_CNT; i++)
@@ -156,7 +156,7 @@ cache_lock (block_sector_t sector, enum lock_type type)
         lock_acquire(&cb->data_lock);
       //lock_release(&cb->block_lock);
       unlock_cache();
-      printf("cache_lock: returning the in cache case\n");
+      //printf("cache_lock: returning the in cache case\n");
       return cb;
     }
     //lock_release(&cb->block_lock);
@@ -164,7 +164,7 @@ cache_lock (block_sector_t sector, enum lock_type type)
 
   /* Not in cache.  Find empty slot. */
 
-  printf("cache_lock: sector %d not in cache\n", sector);
+  //printf("cache_lock: sector %d not in cache\n", sector);
 
   /* cache[i] is locked when i is returned */
   i = find_free_block();
@@ -183,7 +183,7 @@ cache_lock (block_sector_t sector, enum lock_type type)
     lock_acquire(&cb->data_lock);
     unlock_cache();
     //PANIC("found a free block");
-    printf("cache_lock: returning the free block case\n");
+    //printf("cache_lock: returning the free block case\n");
     return &cache[i];
   }
   else /* No empty slots.  Evict something. */
@@ -224,9 +224,12 @@ cache_read (struct cache_block *b)
   /* do we need anything else here?? */
   //lock_acquire(&b->block_lock);
   //lock_data(b);
-  block_read (fs_device, b->sector, b->data);
-  //unlock_data(b);
-  b->up_to_date = true;
+  if(!b->up_to_date)
+  {
+    block_read (fs_device, b->sector, b->data);
+    //unlock_data(b);
+    b->up_to_date = true;
+  }
   //lock_release(&b->block_lock);
   return (void *) b->data;
 }
