@@ -6,6 +6,7 @@
 #include "threads/malloc.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
+#include <random.h>
 
 #define INVALID_SECTOR ((block_sector_t) -1)
 
@@ -43,7 +44,7 @@ cache_init (void)
 {
   int i;
   lock_init(&cache_sync);
-
+  random_init(0xf1c183acc);
   for(i = 0; i < CACHE_CNT; i++)
   {
     struct cache_block *cb = &cache[i];
@@ -180,7 +181,34 @@ cache_lock (block_sector_t sector, enum lock_type type)
   }
   else /* No empty slots.  Evict something. */
   {
-    PANIC("cache_lock: haven't implemented this yet lololol");
+    int rand;
+    random_bytes(&rand, 1);
+    if(rand <0)
+    {
+      rand = rand * (-1);
+    }
+    rand = rand % CACHE_CNT;
+    struct cache_block *chosen_one=&cache[rand];
+    if(chosen_one->dirty)
+    {
+      lock_acquire(&chosen_one->data_lock);
+      block_write (fs_device, chosen_one->sector, chosen_one->data);
+      lock_release(&chosen_one->data_lock);
+    }
+    chosen_one->sector = sector;
+    chosen_one->readers = type == EXCLUSIVE ? 0 : 1;
+    chosen_one->read_waiters = 0;
+    chosen_one->writers = type == EXCLUSIVE ? 1 : 0;
+    chosen_one->write_waiters = 0;
+    chosen_one->up_to_date = false;
+    chosen_one->dirty = false;
+    //lock_release(&cb->block_lock);
+    //lock_init(&chosen_one->data_lock);
+    lock_acquire(&chosen_one->data_lock);
+    unlock_cache();
+    //PANIC("found a free block");
+    //printf("cache_lock: returning the free block case\n");
+    return &cache[i];
   }
 
   unlock_cache();
