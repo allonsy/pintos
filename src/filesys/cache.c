@@ -7,6 +7,7 @@
 #include "threads/synch.h"
 #include "threads/thread.h"
 #include <random.h>
+#include "threads/thread.h"
 
 #define INVALID_SECTOR ((block_sector_t) -1)
 
@@ -15,6 +16,7 @@
 #define CACHE_CNT 64
 struct cache_block cache[CACHE_CNT];
 struct lock cache_sync;
+struct lock *cache_bak;
 static int hand = 0;
 
 
@@ -25,17 +27,19 @@ static void readaheadd_submit (block_sector_t sector);
 static void
 lock_cache(void)
 {
-  printf("lock_cache: entered\n");
-  if(!lock_held_by_current_thread(&cache_sync))
-    lock_acquire(&cache_sync);
-  printf("lock_cache: exiting\n");
+  if(!lock_held_by_current_thread(cache_bak))
+  {
+    lock_acquire(cache_bak);
+  }
 }
 static void
 unlock_cache(void)
 {
   //printf("unlock_cache: entered\n");
-  if(lock_held_by_current_thread(&cache_sync))
-    lock_release(&cache_sync);
+  if(lock_held_by_current_thread(cache_bak))
+  {
+    lock_release(cache_bak);
+  }
   //printf("unlock_cache: exiting\n");
 }
 /* Initializes cache. */
@@ -44,6 +48,7 @@ cache_init (void)
 {
   int i;
   lock_init(&cache_sync);
+  cache_bak = &cache_sync;
   random_init(0xf1c183acc);
   for(i = 0; i < CACHE_CNT; i++)
   {
@@ -59,6 +64,7 @@ cache_init (void)
     cb->up_to_date = false;
     cb->dirty = false;
     cb->is_free = true;
+    cb->accessed = false;
     lock_init(&cb->data_lock);
   }
 }
@@ -92,7 +98,9 @@ cache_lock_helper(struct cache_block *cb, enum lock_type type)
     cb->write_waiters++;
     cb->is_free = false;
     if(!lock_held_by_current_thread(&cb->block_lock))
+    {
       lock_acquire(&cb->block_lock);
+    }
     while(cb->writers || cb->readers)
     {
       unlock_cache();
@@ -241,19 +249,110 @@ cache_lock (block_sector_t sector, enum lock_type type)
    necessary, and return a pointer to its data.
    The caller must have an exclusive or non-exclusive lock on
    B. */
-void *
-cache_read (struct cache_block *b) 
+void
+cache_read (block_sector_t sector_idx, void *buf) 
 {
   /* do we need anything else here?? */
-  lock_cache();
-  if(!b->up_to_date && !b->dirty)
+  if(sector_idx == INVALID_SECTOR)
   {
-    //printf("cache_read: reading from disk\n");
-    block_read (fs_device, b->sector, b->data);
-    b->up_to_date = true;
+    debug_backtrace ();
+    PANIC("cache_lock: INVALID_SECTOR passed in");
+    return NULL;
+  }
+
+  int i;
+  lock_cache();
+
+  try_again:
+
+  /* Is the block already in-cache? */
+
+
+  for(i = 0; i < CACHE_CNT; i++)
+  {
+    struct cache_block *cb = &cache[i];     
+    if(cb->sector == sector_idx)
+    { 
+      lock_acquire(&cb->block_lock);
+      if(cb->writers!=0)
+      {
+        cb->read_waiters++;
+        while(cb->writers)
+        {
+          cond_wait(&cb->no_writers, &cb->block_lock);
+        }
+      }
+      cb->readers++;
+      lock_release(&cb->block_lock);
+      unlock_cache();
+      lock_acquire(&cb->data_lock);
+      memcpy(buf, cb->data, BLOCK_SECTOR_SIZE);
+      cb->accessed = true;
+      lock_acquire(&cb->block_lock);
+      cb->readers--;
+      if(cb->readers ==0)
+      {
+        if(cb->write_waiters)
+        {
+          lock_release(&cb->block_lock);
+          cond_signal(&cb->no_readers_or_writers, &cb->block_lock);
+        }
+        else
+        {
+          lock_release(&cb->block_lock);
+        }
+      }
+      lock_release(&cb->data_lock);
+      return;
+    }
   }
   unlock_cache();
-  return (void *) b->data;
+  PANIC("not implemented\n");
+}
+
+
+//writes buffer to sector idx in cache no write back
+cache_write(block_sector_t sector_idx, void *buf)
+{
+  if(sector_idx == INVALID_SECTOR)
+  {
+    debug_backtrace ();
+    PANIC("cache_lock: INVALID_SECTOR passed in");
+    return NULL;
+  }
+
+  int i;
+  lock_cache();
+  try_again:
+
+  /* Is the block already in-cache? */
+  for(i = 0; i < CACHE_CNT; i++)
+  {
+    struct cache_block *cb = &cache[i];     
+    if(cb->sector == sector_idx)
+    {
+      lock_acquire(&cb->block_lock);
+      if(!(cb->readers == 0 && cb->writers == 0))
+      {
+        cb->write_waiters++;
+        while(cb->readers || cb->writers)
+        {
+          cond_wait(&cb->no_readers_or_writers, &cb->block_lock);
+        }
+      }
+      cb->writers++;
+      lock_release(&cb->block_lock);
+      unlock_cache();
+      memcpy(cb->data, buf, BLOCK_SECTOR_SIZE);
+      cb->dirty = true;
+      lock_acquire(&cb->block_lock);
+      cb->writers--;
+      lock_release(&cb->block_lock);
+      cond_signal(&cb->no_writers, &cb->block_lock);
+    }
+  }
+  unlock_cache();
+  PANIC("not implemented write pull\n");
 }
 
 /* Zero out block B, without reading it from disk, and return a
@@ -300,10 +399,11 @@ void
 cache_unlock (struct cache_block *b, enum lock_type type) 
 {
   /* may not be necessary to hold cache sync lock */
-  printf("beggin\n");
   lock_cache();
-  printf("endinger\n");
-  lock_acquire(&b->block_lock);
+  if(!lock_held_by_current_thread(&b->block_lock))
+  {
+    lock_acquire(&b->block_lock);
+  }
   if(type == EXCLUSIVE) /* I assume this means writing? */
   {
     b->writers--; /* should be zero now */
@@ -338,8 +438,13 @@ cache_unlock (struct cache_block *b, enum lock_type type)
   }
   cache_unlock_freer(b);
   if(lock_held_by_current_thread(&b->block_lock))
+  {
     lock_release(&b->block_lock);
-  unlock_cache();
+  }
+  if(lock_held_by_current_thread(&cache_sync))
+  {
+    unlock_cache();
+  }
   return;
 }
 

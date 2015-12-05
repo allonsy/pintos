@@ -142,58 +142,30 @@ inode_open (block_sector_t sector)
   struct list_elem *e;
   struct inode *inode;
 
-
   /* Check whether this inode is already open. */
-
-  lock_list();
-  for (e = list_begin (&open_inodes); e != list_end (&open_inodes); e = list_next (e)) 
-  {
-    inode = list_entry (e, struct inode, elem);
-    if (inode->sector == sector) 
-      {
-        inode_reopen (inode);
-        unlock_list();
-        return inode; 
-      }
-  }
+  for (e = list_begin (&open_inodes); e != list_end (&open_inodes);
+       e = list_next (e)) 
+    {
+      inode = list_entry (e, struct inode, elem);
+      if (inode->sector == sector) 
+        {
+          inode_reopen (inode);
+          return inode; 
+        }
+    }
 
   /* Allocate memory. */
   inode = malloc (sizeof *inode);
   if (inode == NULL)
-  {
-    unlock_list();
     return NULL;
-  }
 
   /* Initialize. */
   list_push_front (&open_inodes, &inode->elem);
-  unlock_list();
-  lock_init(&inode->deny_write_lock);
-  lock_init(&inode->lock);
-  cond_init (&inode->no_writers_cond);
   inode->sector = sector;
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
-  inode->writer_cnt = 0;
   inode->removed = false;
-
-
-  struct cache_block *b = cache_lock(inode->sector, EXCLUSIVE);
-  struct inode_disk *data = (struct inode_disk*) cache_read(b);
-  inode->length = data->length;
-  inode->start = data->start;
-  cache_unlock(b, EXCLUSIVE);
-
-  //printf("inode_open: sector %d length %d start %d ptr %p\n", sector, inode->length, inode->start, inode);
-  /* I am not sure we need to do anything else here. I think we can lazily
-    allocate a cache block when we are reading from the inode 
-
-    IF WE NEED THIS:
-    I think this should be nonexclusive since we are just opening the file 
-   */
-  //struct cache_block *block = cache_lock (sector, NON_EXCLUSIVE);
-  //struct inode_disk *data = cache_read(block);
-    printf("check\n");
+  //cache_read (inode->sector, &inode->data);
   return inode;
 }
 
@@ -230,13 +202,14 @@ inode_close (struct inode *inode)
       list_remove (&inode->elem);
 
       struct cache_block *b = cache_lock(inode->sector, EXCLUSIVE);
-      struct inode_disk *data = (struct inode_disk *) cache_read(b);
+      /*Need to flush file */
+      //struct inode_disk *data = (struct inode_disk *) cache_read(b);
  
       /* Deallocate blocks if removed. */
       if (inode->removed) 
       {
         free_map_release (inode->sector, 1);
-        free_map_release (data->start, bytes_to_sectors (data->length)); 
+        //free_map_release (data->start, bytes_to_sectors (data->length)); 
       }
 
       cache_unlock(b, EXCLUSIVE);
@@ -260,16 +233,12 @@ inode_remove (struct inode *inode)
 off_t
 inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset) 
 {
-  printf("start\n");
   uint8_t *buffer = buffer_;
   off_t bytes_read = 0;
-  //uint8_t *bounce = NULL;
-  struct cache_block *b;
-  char *data;
+  uint8_t *bounce = NULL;
 
   while (size > 0) 
   {
-    //printf("begin loop top\n");
     /* Disk sector to read, starting byte offset within sector. */
     block_sector_t sector_idx = byte_to_sector (inode, offset);
     int sector_ofs = offset % BLOCK_SECTOR_SIZE;
@@ -282,40 +251,36 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
     /* Number of bytes to actually copy out of this sector. */
     int chunk_size = size < min_left ? size : min_left;
     if (chunk_size <= 0)
-    {
-      //printf("loop break\n");
       break;
-    }
 
     if (sector_ofs == 0 && chunk_size == BLOCK_SECTOR_SIZE)
     {
-      //printf("in sectos 1\n");
       /* Read full sector directly into caller's buffer. */
-      b = cache_lock(sector_idx, EXCLUSIVE);
-      data = (char*) cache_read(b);
-      memcpy(buffer + bytes_read, data, BLOCK_SECTOR_SIZE);
-      //cache_dirty(b);
-      cache_unlock(b, EXCLUSIVE);
-      //printf("end sectos 1\n");
+      cache_read(sector_idx, buffer + bytes_read);
     }
     else 
+    {
+      /* Read sector into bounce buffer, then partially copy
+         into caller's buffer. */
+      if (bounce == NULL) 
       {
-        //printf("sectos 2\n");
-        /* Read sector into bounce buffer, then partially copy
-           into caller's buffer. */
-        b = cache_lock(sector_idx, EXCLUSIVE);
-        data = (char*) cache_read(b);
-        memcpy (buffer + bytes_read, data + sector_ofs, chunk_size);
-        cache_unlock(b, EXCLUSIVE);
-        //printf("ern\n");
+        bounce = malloc (BLOCK_SECTOR_SIZE);
+        if (bounce == NULL)
+        {
+          break;
+        }
       }
+      block_read (fs_device, sector_idx, bounce);
+      memcpy (buffer + bytes_read, bounce + sector_ofs, chunk_size);
+    }
     
     /* Advance. */
     size -= chunk_size;
     offset += chunk_size;
     bytes_read += chunk_size;
   }
-  printf("ending\n");
+  free (bounce);
+
   return bytes_read;
 }
 
@@ -331,17 +296,9 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   const uint8_t *buffer = buffer_;
   off_t bytes_written = 0;
   uint8_t *bounce = NULL;
-  char *data;
-  struct cache_block *b;
 
-  //printf("inode ptr: %p sector: %d\n", inode, inode->sector, inode->length);
-
-  ASSERT(inode != NULL);
-  off_t length = inode_length (inode);
-
-  //printf("inode_write_at: sector %u length %d\n", inode->sector, length);
-  // if (inode->deny_write_cnt)
-  //   return 0;
+  if (inode->deny_write_cnt)
+    return 0;
 
   while (size > 0) 
     {
@@ -350,35 +307,39 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
-      off_t inode_left = length - offset;
+      off_t inode_left = inode_length (inode) - offset;
       int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
       int min_left = inode_left < sector_left ? inode_left : sector_left;
 
       /* Number of bytes to actually write into this sector. */
       int chunk_size = size < min_left ? size : min_left;
       if (chunk_size <= 0)
-      {
-        //printf("inode_write_at: chunk_size <= 0, bytes_written %d\n", bytes_written);
         break;
-      }
 
       if (sector_ofs == 0 && chunk_size == BLOCK_SECTOR_SIZE)
         {
           /* Write full sector directly to disk. */
-          b = cache_lock(sector_idx, EXCLUSIVE);
-          data = (char*) cache_read(b);
-          memcpy(data, buffer + bytes_written, BLOCK_SECTOR_SIZE);
-          cache_dirty(b);
-          cache_unlock(b, EXCLUSIVE);
+          cache_write(sector_idx, buffer + bytes_written);
         }
       else 
         {
           /* We need a bounce buffer. */
-          b = cache_lock(sector_idx, EXCLUSIVE);
-          data = (char*) cache_read(b);
-          memcpy(data + sector_ofs, buffer + bytes_written, chunk_size);
-          cache_dirty(b);
-          cache_unlock(b, EXCLUSIVE);
+          if (bounce == NULL) 
+            {
+              bounce = malloc (BLOCK_SECTOR_SIZE);
+              if (bounce == NULL)
+                break;
+            }
+
+          /* If the sector contains data before or after the chunk
+             we're writing, then we need to read in the sector
+             first.  Otherwise we start with a sector of all zeros. */
+          if (sector_ofs > 0 || chunk_size < sector_left) 
+            cache_read (sector_idx, bounce);
+          else
+            memset (bounce, 0, BLOCK_SECTOR_SIZE);
+          memcpy (bounce + sector_ofs, buffer + bytes_written, chunk_size);
+          block_write (fs_device, sector_idx, bounce);
         }
 
       /* Advance. */
