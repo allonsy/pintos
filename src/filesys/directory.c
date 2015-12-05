@@ -155,7 +155,7 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
   /* Check that NAME is not in use. */
   if (lookup (dir, name, NULL, NULL))
     goto done;
-
+  //printf("name success %s\n", name);
   /* Set OFS to offset of free slot.
      If there are no free slots, then it will be set to the
      current end-of-file.

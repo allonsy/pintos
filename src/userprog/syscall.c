@@ -13,6 +13,7 @@
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 #include "threads/synch.h"
+#include "filesys/directory.h"
 
 static void syscall_handler (struct intr_frame *f);
 
@@ -229,8 +230,24 @@ static bool
 sys_create (char *file_name, unsigned initial_size)
 {
   char *kfile = copy_in_string (file_name);
+  if(strcmp(kfile, "") == 0)
+  {
+    sys_exit(-1);
+  }
+  if(strlen(kfile)>NAME_MAX)
+  {
+    return 0;
+  }
   lock_acquire(&filesys_lock);
-  bool ret = filesys_create(kfile, initial_size);
+  bool ret;
+  if(filesys_open(kfile) == NULL)
+  {
+    ret = filesys_create(kfile, initial_size);
+  }
+  else
+  {
+    ret = 0;
+  }
   lock_release(&filesys_lock);
   free(kfile);
   return ret;
@@ -359,7 +376,6 @@ sys_open (const char *file)
   }
 
   list_push_back(&t->files, &fds->elem);
-
   free(kfile);
   return fds->fd;
 }

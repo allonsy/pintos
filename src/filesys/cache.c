@@ -25,10 +25,10 @@ static void readaheadd_submit (block_sector_t sector);
 static void
 lock_cache(void)
 {
-  //printf("lock_cache: entered\n");
+  printf("lock_cache: entered\n");
   if(!lock_held_by_current_thread(&cache_sync))
     lock_acquire(&cache_sync);
-  //printf("lock_cache: exiting\n");
+  printf("lock_cache: exiting\n");
 }
 static void
 unlock_cache(void)
@@ -132,7 +132,7 @@ cache_lock_helper(struct cache_block *cb, enum lock_type type)
 struct cache_block *
 cache_lock (block_sector_t sector, enum lock_type type) 
 {
-
+  //printf("starty\n");
   /* need this for some inode functions */
   if(sector == INVALID_SECTOR)
   {
@@ -300,7 +300,9 @@ void
 cache_unlock (struct cache_block *b, enum lock_type type) 
 {
   /* may not be necessary to hold cache sync lock */
+  printf("beggin\n");
   lock_cache();
+  printf("endinger\n");
   lock_acquire(&b->block_lock);
   if(type == EXCLUSIVE) /* I assume this means writing? */
   {
