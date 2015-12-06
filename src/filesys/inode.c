@@ -46,6 +46,7 @@ struct inode
     struct condition no_writers_cond;   /* Signaled when no writers. */ 
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
     int writer_cnt;                     /* Number of writers. */
+    struct inode_disk data; 
   };
 /* Returns the block device sector that contains byte offset POS
    within INODE.
@@ -117,17 +118,20 @@ inode_create (block_sector_t sector, off_t length)
     disk_inode->magic = INODE_MAGIC;
     if (free_map_allocate (sectors, &disk_inode->start)) 
       {
+        printf("\n\ninode set to: %u\n\n", disk_inode->length);
         block_write (fs_device, sector, disk_inode);
         if (sectors > 0) 
-          {
+        {
             static char zeros[BLOCK_SECTOR_SIZE];
             size_t i;
             
             for (i = 0; i < sectors; i++) 
+            {
               block_write (fs_device, disk_inode->start + i, zeros);
-          }
+            }
+        }
         success = true; 
-      } 
+      }
     free (disk_inode);
   }
   return success;
@@ -165,7 +169,8 @@ inode_open (block_sector_t sector)
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
-  //cache_read (inode->sector, &inode->data);
+  cache_read (inode->sector, &inode->data);
+  inode->length = inode->data.length;
   return inode;
 }
 
@@ -201,7 +206,7 @@ inode_close (struct inode *inode)
       /* Remove from inode list and release lock. */
       list_remove (&inode->elem);
 
-      struct cache_block *b = cache_lock(inode->sector, EXCLUSIVE);
+      //struct cache_block *b = cache_lock(inode->sector, EXCLUSIVE);
       /*Need to flush file */
       //struct inode_disk *data = (struct inode_disk *) cache_read(b);
  
@@ -209,10 +214,10 @@ inode_close (struct inode *inode)
       if (inode->removed) 
       {
         free_map_release (inode->sector, 1);
-        //free_map_release (data->start, bytes_to_sectors (data->length)); 
+        free_map_release (inode->data.start, bytes_to_sectors (inode->data.length)); 
       }
 
-      cache_unlock(b, EXCLUSIVE);
+      //cache_unlock(b, EXCLUSIVE);
 
       free (inode); 
     }
@@ -308,6 +313,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
       off_t inode_left = inode_length (inode) - offset;
+      printf("inode left is: %d\n", inode_length(inode));
       int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
       int min_left = inode_left < sector_left ? inode_left : sector_left;
 

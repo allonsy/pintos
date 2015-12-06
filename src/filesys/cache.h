@@ -32,7 +32,7 @@ enum lock_type
 
 void cache_init (void);
 void cache_flush (void);
-struct cache_block *cache_lock (block_sector_t, enum lock_type);
+//struct cache_block *cache_lock (block_sector_t, enum lock_type);
 void cache_read (block_sector_t sector_idx, void *buf);
 void cache_write (block_sector_t sector_idx, void *buf);
 //void *cache_zero (struct cache_block *); /* not yet implemented, so commented out here for safety */

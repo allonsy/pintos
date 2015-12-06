@@ -137,11 +137,13 @@ cache_lock_helper(struct cache_block *cb, enum lock_type type)
    If TYPE is NON_EXCLUSIVE, then block returned may be locked by
    any number of other callers.  The calling thread may already
    have any number of non-exclusive locks on the block. */
-struct cache_block *
+/*struct cache_block *
 cache_lock (block_sector_t sector, enum lock_type type) 
 {
   //printf("starty\n");
-  /* need this for some inode functions */
+  // need this for some inode functions
+  debug_backtrace();
+  PANIC("IN CACHE_LOCK\n");
   if(sector == INVALID_SECTOR)
   {
     debug_backtrace ();
@@ -153,7 +155,7 @@ cache_lock (block_sector_t sector, enum lock_type type)
 
   try_again:
 
-  /* Is the block already in-cache? */
+  // Is the block already in-cache?
 
   lock_cache();
   for(i = 0; i < CACHE_CNT; i++)
@@ -168,7 +170,7 @@ cache_lock (block_sector_t sector, enum lock_type type)
     }
   }
 
-  /* Not in cache.  Find empty slot. */
+  // Not in cache.  Find empty slot.
 
   i = find_free_block();
 
@@ -187,7 +189,7 @@ cache_lock (block_sector_t sector, enum lock_type type)
     //printf("cache_lock: returning from disk\n");
     return &cache[i];
   }
-  else /* No empty slots.  Evict something. */
+  else //No empty slots.  Evict something.
   {
     int rand;
 
@@ -229,7 +231,7 @@ cache_lock (block_sector_t sector, enum lock_type type)
 
   unlock_cache();
 
-  /* Wait for cache contention to die down. */
+  /* Wait for cache contention to die down.
 
   // sometimes, you might get into a situation where you
   // cannot find a block to evict, or you cannot lock
@@ -243,7 +245,7 @@ cache_lock (block_sector_t sector, enum lock_type type)
   goto try_again;
 
   return NULL;
-}
+}*/
 
 /* Bring block B up_to_date, by reading it from disk if
    necessary, and return a pointer to its data.
@@ -264,7 +266,6 @@ cache_read (block_sector_t sector_idx, void *buf)
   lock_cache();
 
   try_again:
-
   /* Is the block already in-cache? */
 
 
@@ -273,6 +274,7 @@ cache_read (block_sector_t sector_idx, void *buf)
     struct cache_block *cb = &cache[i];     
     if(cb->sector == sector_idx)
     { 
+      printf("found\n");
       lock_acquire(&cb->block_lock);
       if(cb->writers!=0)
       {
@@ -306,6 +308,26 @@ cache_read (block_sector_t sector_idx, void *buf)
       return;
     }
   }
+
+  int newBlock = find_free_block();
+  if(newBlock == -1)
+  {
+    PANIC("eviction not implemented\n");
+  }
+  else
+  {
+    struct cache_block *cb = &cache[newBlock];
+    cb->sector = sector_idx;
+    cb->readers = 0;
+    cb->read_waiters = 0;
+    cb->writers = 0;
+    cb->write_waiters = 0;
+    cb->up_to_date = true;
+    cb->dirty = false;
+    block_read (fs_device, cb->sector, cb->data);
+  }
+  goto try_again;
+
   unlock_cache();
   PANIC("not implemented\n");
 }
@@ -331,6 +353,7 @@ cache_write(block_sector_t sector_idx, void *buf)
     struct cache_block *cb = &cache[i];     
     if(cb->sector == sector_idx)
     {
+      printf("write found\n");
       lock_acquire(&cb->block_lock);
       if(!(cb->readers == 0 && cb->writers == 0))
       {
@@ -347,12 +370,82 @@ cache_write(block_sector_t sector_idx, void *buf)
       cb->dirty = true;
       lock_acquire(&cb->block_lock);
       cb->writers--;
-      lock_release(&cb->block_lock);
-      cond_signal(&cb->no_writers, &cb->block_lock);
+      if(cb->read_waiters)
+      {
+        lock_release(&cb->block_lock);
+        cond_signal(&cb->no_writers, &cb->block_lock);
+      }
+      else if(cb->write_waiters)
+      {
+        lock_release(&cb->block_lock);
+        cond_signal(&cb->no_readers_or_writers, &cb->block_lock);
+      }
+      else
+      {
+        lock_release(&cb->block_lock);
+      }
+      return;
     }
   }
+
+  int newBlock = find_free_block();
+  if(newBlock == -1)
+  {
+    PANIC("eviction not implemented\n");
+  }
+  else
+  {
+    struct cache_block *cb = &cache[newBlock];
+    cb->sector = sector_idx;
+    cb->readers = 0;
+    cb->read_waiters = 0;
+    cb->writers = 0;
+    cb->write_waiters = 0;
+    cb->up_to_date = true;
+    cb->dirty = false;
+    block_read (fs_device, cb->sector, cb->data);
+  }
+  goto try_again;
+  
+
   unlock_cache();
   PANIC("not implemented write pull\n");
+}
+
+void evict(block_sector_t sector_idx)
+{
+  int rand;
+
+  rand_segment:
+  random_bytes(&rand, 1);
+  if(rand < 0)
+  {
+    rand = rand * (-1);
+  }
+  rand = rand % CACHE_CNT;
+  struct cache_block *chosen_one = &cache[rand];
+
+  if(chosen_one->readers || chosen_one->writers)
+  {
+    goto rand_segment;
+  }
+
+  if(chosen_one->dirty)
+  {
+    lock_acquire(&chosen_one->data_lock);
+    block_write (fs_device, chosen_one->sector, chosen_one->data);
+    lock_release(&chosen_one->data_lock);
+  }
+  chosen_one->sector = sector_idx;
+  chosen_one->readers = 0;
+  chosen_one->read_waiters = 0;
+  chosen_one->writers = 0;
+  chosen_one->write_waiters = 0;
+  chosen_one->up_to_date = false;
+  chosen_one->dirty = false;
+  //lock_release(&cb->block_lock);
+  //lock_init(&chosen_one->data_lock);
+  lock_acquire(&chosen_one->data_lock);
 }
 
 /* Zero out block B, without reading it from disk, and return a
@@ -503,11 +596,14 @@ find_free_block()
   int i;
   for(i = 0; i<CACHE_CNT; i++)
   {
+    //printf("in find free with i: %d\n", i);
     if(cache[i].is_free)
     {
       cache[i].is_free = false;
       return i;
     }
+    //printf("no go\n");
   }
+  //printf("bailing\n");
   return -1;
 }
