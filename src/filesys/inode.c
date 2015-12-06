@@ -193,7 +193,6 @@ inode_open (block_sector_t sector)
    */
   //struct cache_block *block = cache_lock (sector, NON_EXCLUSIVE);
   //struct inode_disk *data = cache_read(block);
-    printf("check\n");
   return inode;
 }
 
@@ -260,7 +259,6 @@ inode_remove (struct inode *inode)
 off_t
 inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset) 
 {
-  printf("start\n");
   uint8_t *buffer = buffer_;
   off_t bytes_read = 0;
   //uint8_t *bounce = NULL;
@@ -315,7 +313,6 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
     offset += chunk_size;
     bytes_read += chunk_size;
   }
-  printf("ending\n");
   return bytes_read;
 }
 
