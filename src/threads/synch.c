@@ -194,7 +194,17 @@ lock_acquire (struct lock *lock)
 {
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
-  ASSERT (!lock_held_by_current_thread (lock));
+  bool res = !lock_held_by_current_thread (lock);
+  if(res == false)
+  {
+    int x = 1+2;
+    printf("about to assert\n");
+  }
+  else
+  {
+    //printf("not asserting\n");
+  }
+  ASSERT (res);
 
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();

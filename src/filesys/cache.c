@@ -15,6 +15,7 @@
 #define CACHE_CNT 64
 struct cache_block cache[CACHE_CNT];
 struct lock cache_sync;
+struct lock *cache_bak;
 static int hand = 0;
 
 
@@ -25,15 +26,15 @@ static void readaheadd_submit (block_sector_t sector);
 static void
 lock_cache(void)
 {
-  if(!lock_held_by_current_thread(&cache_sync))
-    lock_acquire(&cache_sync);
+  if(!lock_held_by_current_thread(cache_bak))
+    lock_acquire(cache_bak);
 }
 static void
 unlock_cache(void)
 {
   //printf("unlock_cache: entered\n");
-  if(lock_held_by_current_thread(&cache_sync))
-    lock_release(&cache_sync);
+  if(lock_held_by_current_thread(cache_bak))
+    lock_release(cache_bak);
   //printf("unlock_cache: exiting\n");
 }
 /* Initializes cache. */
@@ -42,6 +43,7 @@ cache_init (void)
 {
   int i;
   lock_init(&cache_sync);
+  cache_bak = &cache_sync;
   random_init(0xf1c183acc);
   for(i = 0; i < CACHE_CNT; i++)
   {
@@ -58,6 +60,7 @@ cache_init (void)
     cb->dirty = false;
     cb->is_free = true;
     lock_init(&cb->data_lock);
+    cb->cache_back = cache_bak;
   }
 }
 
@@ -153,7 +156,6 @@ cache_lock (block_sector_t sector, enum lock_type type)
     { 
       cache_lock_helper(cb, type);
       unlock_cache();
-      //printf("cache_lock: returning from cache\n");
       return cb;
     }
   }
@@ -174,7 +176,6 @@ cache_lock (block_sector_t sector, enum lock_type type)
     cb->dirty = false;
     block_read (fs_device, cb->sector, cb->data);
     unlock_cache();
-    //printf("cache_lock: returning from disk\n");
     return &cache[i];
   }
   else /* No empty slots.  Evict something. */
@@ -189,7 +190,6 @@ cache_lock (block_sector_t sector, enum lock_type type)
     }
     rand = rand % CACHE_CNT;
     struct cache_block *chosen_one = &cache[rand];
-
     if(chosen_one->readers || chosen_one->writers)
     {
       goto rand_segment;
@@ -210,11 +210,14 @@ cache_lock (block_sector_t sector, enum lock_type type)
     chosen_one->dirty = false;
     //lock_release(&cb->block_lock);
     //lock_init(&chosen_one->data_lock);
-    lock_acquire(&chosen_one->data_lock);
+    if(!lock_held_by_current_thread(&chosen_one->data_lock))
+    {
+      lock_acquire(&chosen_one->data_lock);
+    }
     unlock_cache();
     //PANIC("found a free block");
     //printf("cache_lock: returning the free block case\n");
-    return &cache[i];
+    return chosen_one;
   }
 
   unlock_cache();
