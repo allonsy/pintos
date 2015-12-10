@@ -142,7 +142,7 @@ resolve_name_to_entry (const char *name,
 /* Resolves relative or absolute file NAME to an inode.
    Returns an inode if successful, or a null pointer on failure.
    The caller is responsible for closing the returned inode. */
-static struct inode *
+struct inode *
 resolve_name_to_inode (const char *name)
 {
   struct dir *parent_dir;
@@ -186,6 +186,14 @@ get_directory_from_name(const char *name, struct dir **dirp)
     }
   }
   return false;
+}
+
+bool
+readdir_by_name(char *name, char *dst)
+{
+  struct dir *dirp;
+  int ret = get_directory_from_name(name, &dirp);
+  return dir_readdir(dirp, dst);
 }
 
 bool change_directory(char *name)

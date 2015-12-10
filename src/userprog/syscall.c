@@ -96,6 +96,8 @@ syscall_handler (struct intr_frame *f)
     case SYS_WAIT:
     case SYS_FILESIZE:
     case SYS_EXIT:
+    case SYS_MKDIR:
+    case SYS_ISDIR:
       arg_cnt = 1;
       break;
 
@@ -166,6 +168,22 @@ syscall_handler (struct intr_frame *f)
 
     case SYS_EXIT:
       sys_exit((int) args[0]);
+      break;
+
+    case SYS_MKDIR:
+      sys_mkdir(args[0]);
+      break;
+    
+    case SYS_ISDIR:
+      sys_isdir((int) args[0]);
+      break;
+
+    case SYS_CHDIR:
+      sys_chdir(args[0]);
+      break;
+
+    case SYS_INUMBER:
+      sys_inumber((int) args[0]);
       break;
 
     /* 2-arg sys calls */  
@@ -254,7 +272,75 @@ sys_create (char *file_name, unsigned initial_size)
   return ret;
 }
 
+static bool
+sys_mkdir(char *name)
+{
+  PANIC("not implemented");
+}
 
+static bool
+sys_rmdir(char *name)
+{
+  PANIC("not implemented");
+}
+
+static bool
+sys_chdir(char *name)
+{
+  PANIC("not implemented");
+}
+
+static bool isdir(int fd)
+{
+  struct thread *t = thread_current();
+  struct list_elem *e;
+  struct fdesc *fds = NULL;
+  for(e=list_begin(&t->files); e != list_end(&t->files); e = list_next(e))
+  {
+    fds = list_entry(e, struct fdesc, elem);
+    if(fds->fd == fd)
+    {
+      return is_directory(file_get_inode(fds->fptr));
+    }
+  }
+  return false;
+}
+
+static int
+sys_inumber(int fd)
+{
+  struct thread *t = thread_current();
+  struct list_elem *e;
+  struct fdesc *fds = NULL;
+  for(e=list_begin(&t->files); e != list_end(&t->files); e = list_next(e))
+  {
+    fds = list_entry(e, struct fdesc, elem);
+    if(fds->fd == fd)
+    {
+      struct inode *in = file_get_inode(fds->fptr);
+      return in->sector;
+    }
+  }
+  return -1;
+}
+
+static bool
+sys_readdir(int fd, char *name)
+{
+  is_valid_uptr(name);
+  struct thread *t = thread_current();
+  struct list_elem *e;
+  struct fdesc *fds = NULL;
+  for(e=list_begin(&t->files); e != list_end(&t->files); e = list_next(e))
+  {
+    fds = list_entry(e, struct fdesc, elem);
+    if(fds->fd == fd)
+    {
+      struct inode *in = file_get_inode(fds->fptr);
+      return in->sector;
+    }
+  }
+}
 
 /* Write system call. */
 static int

@@ -17,5 +17,5 @@ void filesys_done (void);
 bool filesys_create (const char *name, off_t initial_size, enum inode_type type);
 struct file *filesys_open (const char *name);
 bool filesys_remove (const char *name);
-
+bool readdir_by_name(char *name, char *dst);
 #endif /* filesys/filesys.h */
