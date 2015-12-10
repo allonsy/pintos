@@ -42,5 +42,6 @@ void lock_data(struct cache_block *);
 void unlock_data(struct cache_block *);
 //void cache_free (block_sector_t); /* not yet implemented, so commented out here for safety */
 void cache_readahead (block_sector_t);
+cache_write(struct cache_block *b);
 
 #endif /* filesys/cache.h */

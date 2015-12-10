@@ -31,7 +31,7 @@
 #define MAX_INDIRECT_SECTOR (DIRECT_CNT + PTRS_PER_SECTOR * INDIRECT_CNT)
 #define MAX_DBL_INDIRECT_SECTOR (DIRECT_CNT + PTRS_PER_SECTOR * INDIRECT_CNT + PTRS_PER_SECTOR * PTRS_PER_SECTOR * DBL_INDIRECT_CNT)
 
-#define DEBUG_VAR_INODE 1
+#define DEBUG_VAR_INODE 0
 
 static void
 dprint(const char *str, bool exitr)
@@ -153,7 +153,7 @@ inode_create (block_sector_t sector, off_t size, enum inode_type type)
     disk_inode->sectors[i] = INVALID_SECTOR;
   }
   allocate_sector(&disk_inode->sectors[0], 0);
-
+  cache_write(block);
   cache_dirty(block);
   cache_unlock(block, EXCLUSIVE);
 
@@ -677,6 +677,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 
       sector_data = cache_read (block);
       memcpy (sector_data + sector_ofs, buffer + bytes_written, chunk_size);
+      cache_write(block);
       cache_dirty (block);
       // if(excl)
       // {

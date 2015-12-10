@@ -381,7 +381,7 @@ cache_read (struct cache_block *b)
   }
   /* do we need anything else here?? */
   lock_cache();
-  if(!b->up_to_date && !b->dirty)
+  if(true)
   {
     if(DEBUG_VAR_CACHE)
     {
@@ -396,6 +396,14 @@ cache_read (struct cache_block *b)
     //printf("out read\n");
   }
   return (void *) b->data;
+}
+
+cache_write(struct cache_block *b)
+{
+  if(true)
+  {
+    block_write(fs_device, b->sector, b->data);
+  }
 }
 
 /* Zero out block B, without reading it from disk, and return a
