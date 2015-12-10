@@ -127,6 +127,7 @@ inode_create (block_sector_t sector, off_t size, enum inode_type type)
   printf("break\n");
   if(block == NULL)
   {
+    cache_unlock(block, EXCLUSIVE);
     return false;
   }
 
@@ -651,7 +652,12 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       /* Number of bytes to actually copy out of this sector. */
       int chunk_size = size < min_left ? size : min_left;
       if (chunk_size <= 0 || !get_data_block (inode, offset, false, &block, &excl))
+      {
+        printf("pointer to block is: %p\n", block);
+        cache_unlock(block, excl);
+        //PANIC("Whhoopsie");
         break;
+      }
 
       if (block == NULL) 
         memset (buffer + bytes_read, 0, chunk_size);
