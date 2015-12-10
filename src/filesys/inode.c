@@ -325,10 +325,10 @@ deallocate_recursive (block_sector_t sector, int level)
       for(i = 0; i < PTRS_PER_SECTOR; i++)
       {
         /* deallocate the indirect sectors pointed to by the block */
-        if(sectors[i] == INVALID_SECTOR)
-          continue;
-        else
+        if(sectors[i] != INVALID_SECTOR)
+        {
           deallocate_recursive(sectors[i], level - 1);
+        }
       }
       break;
     default:
@@ -392,7 +392,7 @@ calculate_indices (off_t sector_idx, size_t offsets[], size_t *offset_cnt)
 
   dprint("calculate_indices", 0);
   /* THIS MATH IS NOT SAFE FOR ANYTHING BUT 1 DBL INDIRECT */
-  ASSERT(sector_idx <= MAX_DBL_INDIRECT_SECTOR);
+  ASSERT(sector_idx < MAX_DBL_INDIRECT_SECTOR);
 
   /* Handle direct blocks. */
   if(sector_idx < DIRECT_CNT)
@@ -403,7 +403,7 @@ calculate_indices (off_t sector_idx, size_t offsets[], size_t *offset_cnt)
     return;
   }
   /* Handle indirect blocks. */
-  if (sector_idx <= MAX_INDIRECT_SECTOR)
+  if (sector_idx < MAX_INDIRECT_SECTOR)
   {
     *offset_cnt = 2;
     off_t ind_idx = sector_idx - DIRECT_CNT;
@@ -413,7 +413,7 @@ calculate_indices (off_t sector_idx, size_t offsets[], size_t *offset_cnt)
     return;
   }
   /* Handle doubly indirect blocks. */
-  if(sector_idx <= MAX_DBL_INDIRECT_SECTOR)
+  if(sector_idx < MAX_DBL_INDIRECT_SECTOR)
   {
     /* this bit in particular assumes that there is one doubly indirect block */
     *offset_cnt = 3;
