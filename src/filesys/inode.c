@@ -461,6 +461,7 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
   struct cache_block *block;
   block_sector_t *data;
   block_sector_t cur_sector = inode->sector;
+  size_t cur_off;
   size_t i;
 
   dprint("get_data_block", 0);
