@@ -503,8 +503,8 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
       }
       if(DEBUG_VAR_INODE)
       {
-        printf("get_data_block: cur_sector: %u and data[cur_off] %u allocate: %s\n", 
-            cur_sector, data[cur_off], allocate ? "TRUE" : "FALSE");
+        printf("get_data_block: cur_sector: %u and data[cur_off] %u allocate: %s iter: %u\n", 
+            cur_sector, data[cur_off], allocate ? "TRUE" : "FALSE", i);
       }
       if(data[cur_off] != INVALID_SECTOR)
       {
