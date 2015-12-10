@@ -60,7 +60,6 @@ bytes_to_sectors (off_t size)
   return DIV_ROUND_UP (size, BLOCK_SECTOR_SIZE);
 }
 
-static bool allocate_sector(block_sector_t *sectorp);
 
 /* In-memory inode. */
 struct inode 
@@ -86,7 +85,7 @@ static struct list open_inodes;
 static struct lock open_inodes_lock;
 
 static void deallocate_inode (const struct inode *);
-static void init_indirect_sector(block_sector_t *);
+static void allocate_sector(block_sector_t *, bool);
 
 
 
@@ -144,7 +143,7 @@ inode_create (block_sector_t sector, off_t size, enum inode_type type)
   {
     disk_inode->sectors[i] = INVALID_SECTOR;
   }
-  allocate_sector(&disk_inode->sectors[0]);
+  allocate_sector(&disk_inode->sectors[0], 1);
 
   cache_dirty(block);
   cache_unlock(block, EXCLUSIVE);
@@ -291,32 +290,6 @@ inode_close (struct inode *inode)
   dprint("inode_close", 1);
 }
 
-/* returns true if it allocated the sector, false if it didn't */
-static bool
-allocate_sector(block_sector_t *sectorp)
-{
-  dprint("allocate_sector", 0);
-  if(*sectorp == INVALID_SECTOR) 
-  {
-    free_map_allocate(1, sectorp);
-    struct cache_block *block = cache_lock(*sectorp, EXCLUSIVE);
-    uint8_t *data = (uint8_t *) cache_read(block);
-    memset(data, 0, BLOCK_SECTOR_SIZE);
-    cache_dirty(block);
-    cache_unlock(block, EXCLUSIVE);
-    dprint("allocate_sector TRUE", 1);
-    return true;
-  }
-
-  if(*sectorp == INVALID_SECTOR)
-  {
-    PANIC("allocate_sector: free_map_allocate failed");
-  }
-
-  dprint("allocate_sector FALSE", 1);
-  return false;
-}
-
 
 /* Deallocates SECTOR and anything it points to recursively.
    LEVEL is 2 if SECTOR is doubly indirect,
@@ -444,22 +417,30 @@ calculate_indices (off_t sector_idx, size_t offsets[], size_t *offset_cnt)
   }
 }
 
-/* will take a pointer to a sector, allocate a sector on disk and set the
-  pointed to value to this sector. 
-  then it sets the all the data block bits to 1. This way, all the sectors 
-  in it are invalid, waiting to be filled */ 
-static void
-init_indirect_sector(block_sector_t *sectorp)
+/* returns true if it allocated the sector, false if it didn't */
+static bool
+allocate_sector(block_sector_t *sectorp, bool direct)
 {
-  dprint("init_indirect_sector", 0);
-  if(*sectorp == INVALID_SECTOR && free_map_allocate(1, sectorp))
+  dprint("allocate_sector", 0);
+  if(*sectorp == INVALID_SECTOR) 
   {
+    free_map_allocate(1, sectorp);
     struct cache_block *block = cache_lock(*sectorp, EXCLUSIVE);
     uint8_t *data = (uint8_t *) cache_read(block);
-    memset(data, ~0, BLOCK_SECTOR_SIZE);
+    memset(data, (direct ? 0 : ~0), BLOCK_SECTOR_SIZE);
+    cache_dirty(block);
     cache_unlock(block, EXCLUSIVE);
+    dprint("allocate_sector TRUE", 1);
+    return true;
   }
-  dprint("init_indirect_sector", 1);
+
+  if(*sectorp == INVALID_SECTOR)
+  {
+    PANIC("allocate_sector: free_map_allocate failed");
+  }
+
+  dprint("allocate_sector FALSE", 1);
+  return false;
 }
 
 /* Retrieves the data block for the given byte OFFSET in INODE,
@@ -472,26 +453,27 @@ init_indirect_sector(block_sector_t *sectorp)
    but a newly allocated block will have an exclusive lock. */
 static bool
 get_data_block (struct inode *inode, off_t offset, bool allocate,
-                struct cache_block **data_block, bool *excl) 
+                struct cache_block **data_block, bool *excl UNUSED) 
 {
   off_t logical_sector = offset / BLOCK_SECTOR_SIZE;
   size_t offsets[3];
   size_t offset_cnt;
-  struct cache_block *block, *indirect_block, *dbl_indirect_block;
-  struct inode_disk *data;
+  struct cache_block *block;
   block_sector_t cur_sector = inode->sector;
-  block_sector_t *blocks, *ind_blocks;
-  bool success = false;
+  //bool success = false;
   int i;
   size_t cur_off;
 
   dprint("get_data_block", 0);
   calculate_indices(logical_sector, offsets, &offset_cnt);
 
+  ASSERT(1 <= offset_cnt && offset_cnt <= 3);
+
+  printf("get_data_block: after calculate_indices, offset_cnt is %d\n", offset_cnt);
 
   for(i = 0; i < offset_cnt; i++)
   {
-    block = cache_lock(cur_sector);
+    block = cache_lock(cur_sector, EXCLUSIVE);
     cur_off = offsets[i];
     if(block != NULL)
     {
@@ -502,21 +484,29 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
       }
       else if (allocate)
       {
-        allocate_sector(&data[cur_off]);
+        allocate_sector(&data[cur_off], (i == offset_cnt - 1));
+        cur_sector = data[cur_off];
       }
-
+      else
+      {
+        cache_unlock(block, EXCLUSIVE);
+        *data_block = NULL;
+        printf("get_data_block: missing block with allocate false on loop inter %d\n", i);
+        return true;
+      }
+      cache_unlock(block, EXCLUSIVE);
     }
-    else
+    else /* block == NULL */
     {
-      PANIC("get_data_block: invalide sector, on iter %d". i);
+      PANIC("get_data_block: cache_lock returned NULL on sector %u. Sector was invalid: %d", 
+          cur_sector, cur_sector == INVALID_SECTOR);
+      return false;
     }
+  } /* end for */
 
-    /* THIS NEEDS TO GET DONE */
+  *data_block = cache_lock(cur_sector, EXCLUSIVE);
 
-  }
-
-
-  return success;
+  return true;
 }
 
 /* Reads SIZE bytes from INODE into BUFFER, starting at position OFFSET.
@@ -578,7 +568,8 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
 }
 
 
-/* Extends INODE to be at least LENGTH bytes long. */
+/* Extends INODE to be at least LENGTH bytes long. 
+*/
 static void
 extend_file (struct inode *inode, off_t length) 
 {
@@ -586,101 +577,15 @@ extend_file (struct inode *inode, off_t length)
   /* maybe shouldn't be an assertion? */
   ASSERT(length <= INODE_SPAN);
 
-  struct cache_block *block, *indirect_block, *dbl_indirect_block;
-  struct inode_disk *data;
-  block_sector_t *blocks, *ind_blocks;
-  int i = 0;
-  int j, k;
-  off_t offset = 0;
-  bool second_while = false;
-  bool third_while = false;
+  struct cache_block *block;
+  off_t offset = 0; /* MAYBE WE SHOULD SET THIS TO THE CURRENT INODE LENGTH ROUNDED DOWN? */
 
-
-  block = cache_lock(inode->sector, EXCLUSIVE);
-  data = (struct inode_disk *) cache_read(block);
-
-  while(offset < length && i < DIRECT_CNT)
+  /* THIS IS CURRENTLY A VERY SLOW AND INEFFICIENT IMPLEMENATION */
+  while(offset < length)
   {
-    /* only allocates if the sector number is invalid */
-    lock_data(block);
-    allocate_sector(&data->sectors[i]);
-    unlock_data(block);
-    offset += BLOCK_SECTOR_SIZE;
-    i++;
-  }
-
-  if(offset < length)
-  {  
-    /* will only create a new sector if there is no valid indirect sector */
-    lock_data(block);
-    init_indirect_sector(&data->sectors[DIRECT_CNT]);
-    unlock_data(block);
-    indirect_block = cache_lock(data->sectors[DIRECT_CNT], EXCLUSIVE);
-    blocks = (block_sector_t *) cache_read(indirect_block);
-    j = 0;
-    second_while = true;
-  }
-
-  /* will only enter this if the above if happened, so use of j is safe 
-    technically the i condition implies the j condition, but let us be safe here */
-  while(offset < length && i < MAX_INDIRECT_SECTOR && j < PTRS_PER_SECTOR)
-  {
-    lock_data(indirect_block);
-    allocate_sector(&blocks[j]);
-    unlock_data(indirect_block);
-    j++;
-    i++;
+    get_data_block (inode, offset, true, &block, true /* unused */);
     offset += BLOCK_SECTOR_SIZE;
   }
-
-  if(second_while)
-  {
-    cache_unlock(indirect_block, EXCLUSIVE);
-  }
-
-  if(offset < length)
-  {
-    lock_data(block);
-    init_indirect_sector(&data->sectors[DIRECT_CNT+1]);
-    unlock_data(block);
-    dbl_indirect_block = cache_lock(data->sectors[DIRECT_CNT+1], EXCLUSIVE);
-    ind_blocks = (block_sector_t *) cache_read(dbl_indirect_block);
-    j = 0;
-    third_while = true;
-  }
-
-  while(offset < length && i < MAX_DBL_INDIRECT_SECTOR && j < PTRS_PER_SECTOR)
-  {
-    lock_data(dbl_indirect_block);
-    init_indirect_sector(&ind_blocks[j]);
-    unlock_data(dbl_indirect_block);
-    indirect_block = cache_lock(ind_blocks[j], EXCLUSIVE);
-    blocks = (block_sector_t *) cache_read(indirect_block);
-    k = 0;
-    while(offset < length && k < PTRS_PER_SECTOR)
-    {
-      lock_data(indirect_block);
-      allocate_sector(&blocks[j]);
-      unlock_data(indirect_block);
-      k++;
-      i++;
-      offset += BLOCK_SECTOR_SIZE;
-    }
-    cache_unlock(indirect_block, EXCLUSIVE);
-    j++;
-  }
-
-  if(third_while)
-  {
-    cache_unlock(dbl_indirect_block, EXCLUSIVE);
-  }
-
-  data->length = offset;
-  cache_dirty(block);
-
-  cache_unlock(block, EXCLUSIVE);
-
-  dprint("extend_file", 1);
 }
 
 /* Writes SIZE bytes from BUFFER into INODE, starting at OFFSET.
@@ -785,7 +690,7 @@ off_t
 inode_length (const struct inode *inode)
 {
   dprint("inode_length", 0);
-    printf("pass read\n");
+  printf("pass read\n");
   struct cache_block *block = cache_lock(inode->sector, NON_EXCLUSIVE);
   struct inode_disk *data = (struct inode_disk *) cache_read(block);
   off_t length = data->length;
