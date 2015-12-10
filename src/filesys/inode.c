@@ -437,6 +437,7 @@ allocate_sector(block_sector_t *sectorp, bool direct)
     struct cache_block *block = cache_lock(*sectorp, EXCLUSIVE);
     uint8_t *data = (uint8_t *) cache_read(block);
     memset(data, (direct ? 0 : ~0), BLOCK_SECTOR_SIZE);
+    cache_write(block);
     cache_dirty(block);
     cache_unlock(block, EXCLUSIVE);
     dprint("allocate_sector TRUE", 1);
@@ -527,6 +528,7 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
       }
       else
       {
+        PANIC("here is a clue\n");
         cache_unlock(block, EXCLUSIVE);
         *data_block = NULL;
         if(DEBUG_VAR_INODE)
@@ -563,45 +565,45 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
   dprint("inode_read_at", 0);
 
   while (size > 0) 
+  {
+    /* Sector to read, starting byte offset within sector, sector data. */
+    int sector_ofs = offset % BLOCK_SECTOR_SIZE;
+    struct cache_block *block;
+
+    /* Bytes left in inode, bytes left in sector, lesser of the two. */
+    off_t inode_left = inode_length (inode) - offset;
+    int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
+    int min_left = inode_left < sector_left ? inode_left : sector_left;
+
+    /* Number of bytes to actually copy out of this sector. */
+    int chunk_size = size < min_left ? size : min_left;
+    if (chunk_size <= 0 || !get_data_block (inode, offset, false, &block, &excl))
     {
-      /* Sector to read, starting byte offset within sector, sector data. */
-      int sector_ofs = offset % BLOCK_SECTOR_SIZE;
-      struct cache_block *block;
-
-      /* Bytes left in inode, bytes left in sector, lesser of the two. */
-      off_t inode_left = inode_length (inode) - offset;
-      int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
-      int min_left = inode_left < sector_left ? inode_left : sector_left;
-
-      /* Number of bytes to actually copy out of this sector. */
-      int chunk_size = size < min_left ? size : min_left;
-      if (chunk_size <= 0 || !get_data_block (inode, offset, false, &block, &excl))
+      if(DEBUG_VAR_INODE)
       {
-        if(DEBUG_VAR_INODE)
-        {
-          //printf("pointer to block is: %p\n", block);
-        }
-        cache_unlock(block, excl);
-        //PANIC("Whhoopsie");
-        break;
+        //printf("pointer to block is: %p\n", block);
       }
+      cache_unlock(block, excl);
+      //PANIC("Whhoopsie");
+      break;
+    }
 
-      if (block == NULL) 
-        memset (buffer + bytes_read, 0, chunk_size);
-      else 
-        {
-          const uint8_t *sector_data = cache_read (block);
-          memcpy (buffer + bytes_read, sector_data + sector_ofs, chunk_size);
-          // if(excl)
-          // {
-          //   cache_unlock (block, EXCLUSIVE);
-          // }
-          // else
-          // {
-          //   cache_unlock (block, NON_EXCLUSIVE);
-          // }
-          cache_unlock (block, EXCLUSIVE);
-        }
+    if (block == NULL) 
+      memset (buffer + bytes_read, 0, chunk_size);
+    else 
+      {
+        const uint8_t *sector_data = cache_read (block);
+        memcpy (buffer + bytes_read, sector_data + sector_ofs, chunk_size);
+        // if(excl)
+        // {
+        //   cache_unlock (block, EXCLUSIVE);
+        // }
+        // else
+        // {
+        //   cache_unlock (block, NON_EXCLUSIVE);
+        // }
+        cache_unlock (block, EXCLUSIVE);
+      }
       
       /* Advance. */
       size -= chunk_size;
@@ -629,7 +631,7 @@ extend_file (struct inode *inode, off_t length)
   /* THIS IS CURRENTLY A VERY SLOW AND INEFFICIENT IMPLEMENATION */
   while(offset < length)
   {
-    get_data_block (inode, offset, true, &block, NULL /* unused */);
+    get_data_block (inode, offset, true, &block, NULL);
     cache_unlock(block, EXCLUSIVE);
     offset += BLOCK_SECTOR_SIZE;
   }
