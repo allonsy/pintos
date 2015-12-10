@@ -31,5 +31,6 @@ off_t inode_length (const struct inode *);
 int inode_open_cnt (const struct inode *);
 void inode_lock (struct inode *);
 void inode_unlock (struct inode *);
+bool is_directory(struct inode *);
 
 #endif /* filesys/inode.h */

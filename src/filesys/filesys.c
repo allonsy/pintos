@@ -105,10 +105,38 @@ resolve_name_to_entry (const char *name,
     int success = dir_lookup(start, string_part, &hop);
     if(success == false)
     {
+      *dirp=start;
       return false;
     }
-    if(hop->)
+    if(is_directory(hop))
+    {
+      start = dir_open(hop);
+      //possibly close parent here;
+    }
+    else
+    {
+      ret = get_next_part(string_part, &name);
+      if(ret == 0)
+      {
+        memcpy(base_name, string_part, NAME_MAX+1);
+        *dirp = start;
+        return true;
+      }
+    }
   }
+  if(ret == -1)
+  {
+    *dirp = NULL;
+    return false;
+  }
+  if(ret == 0)
+  {
+    memcpy(base_name, string_part, NAME_MAX+1);
+    *dirp = start;
+    return true;
+  }
+  *dirp = NULL;
+  return false;
 }
 
 /* Resolves relative or absolute file NAME to an inode.
@@ -130,6 +158,46 @@ resolve_name_to_inode (const char *name)
     dir_lookup(parent_dir, base, &file_node);
     return file_node;
   }
+}
+
+//given a file path of only dirs, returns the dir* of the last directory
+//returns false if the last part isn't a directory
+bool
+get_directory_from_name(const char *name, struct dir **dirp)
+{
+  char base[NAME_MAX +1];
+  struct *dir parent;
+  bool ret = resolve_name_to_entry(name, &dir, base);
+  if(ret == false)
+  {
+    return false;
+  }
+  struct inode *in;
+  ret = dir_lookup(dir, name, &in);
+  if(ret == true)
+  {
+    if(is_directory(in))
+    {
+      *dirp = dir_open(in);
+    }
+    else
+    {
+      return false;
+    }
+  }
+  return false;
+}
+
+bool change_directory(char *name)
+{
+  struct dir *d;
+  bool ret = get_directory_from_name(name, &d);
+  if(ret == true)
+  {
+    thread_current()->current_dir = dir_get_inode(d);
+    return true;
+  }
+  return false;
 }
 
 bool
@@ -165,14 +233,18 @@ filesys_create (const char *name, off_t initial_size, enum inode_type type)
 struct file *
 filesys_open (const char *name)
 {
-  struct dir *dir = dir_open_root ();
+  /*struct dir *dir = dir_open_root ();
   struct inode *inode = NULL;
 
   if (dir != NULL)
     dir_lookup (dir, name, &inode);
   dir_close (dir);
-  
-  return file_open (inode);
+  */
+  struct inode *in = resolve_name_to_inode(name);
+  if(in) == NULL;
+  return NULL;
+
+  return file_open (in);
 }
 
 /* Deletes the file named NAME.
@@ -182,8 +254,14 @@ filesys_open (const char *name)
 bool
 filesys_remove (const char *name) 
 {
-  struct dir *dir = dir_open_root ();
-  bool success = dir != NULL && dir_remove (dir, name);
+  struct dir *d;
+  char base[NAME_MAX + 1];
+  bool success = resolve_name_to_entry(name, &d, base);
+  if(success == false)
+  {
+    return false;
+  }
+  success = dir != NULL && dir_remove (d, name);
   dir_close (dir); 
 
   return success;

@@ -88,7 +88,20 @@ static struct lock open_inodes_lock;
 static void deallocate_inode (const struct inode *);
 static void init_indirect_sector(block_sector_t *);
 
-
+bool is_directory(struct inode *in)
+{
+  struct cache_block *cb = cache_lock(in->sector, NON_EXCLUSIVE);
+  struct inode_disk *idisk = (struct inode_disk *)cache_read(cb);
+  cache_unlock(cb, NON_EXCLUSIVE);
+  if(idisk->type == DIR_INODE)
+  {
+    return true;
+  }
+  else
+  {
+    return false;
+  }
+}
 
 static void
 lock_list(void)
@@ -150,6 +163,41 @@ inode_create (block_sector_t sector, off_t size, enum inode_type type)
   cache_unlock(block, EXCLUSIVE);
 
   return true;
+}
+
+bool create_dir(char *name)
+{
+  struct dir *parent;
+  char base[NAME_MAX+1];
+  int ret = resolve_name_to_entry(name, &dir, base);
+  if(ret ==false)
+  {
+    if(parent == NULL)
+    {
+      return false;
+    }
+    else
+    {
+      block_sector_t sector;
+      int ret = free_map_allocate(1, sector);
+      //synch primitives?
+      if(ret == false)
+      {
+        return false;
+      }
+      struct inode *child = dir_create(sector, get_dir_inode(parent)->sector);
+      if(child == NULL)
+      {
+        return false;
+      }
+      else
+      {
+        ret = dir_add(parent, name, inode->sector);
+        return ret;
+      }
+    }
+  }
+  return false;
 }
 
 /* Reads an inode from SECTOR
