@@ -31,7 +31,7 @@
 #define MAX_INDIRECT_SECTOR (DIRECT_CNT + PTRS_PER_SECTOR * INDIRECT_CNT)
 #define MAX_DBL_INDIRECT_SECTOR (DIRECT_CNT + PTRS_PER_SECTOR * INDIRECT_CNT + PTRS_PER_SECTOR * PTRS_PER_SECTOR * DBL_INDIRECT_CNT)
 
-#define DEBUG_VAR 1
+#define DEBUG_VAR 0
 
 static void
 dprint(const char *str, bool exitr)
@@ -121,9 +121,9 @@ inode_create (block_sector_t sector, off_t size, enum inode_type type)
 {
   /* If this assertion fails, the inode structure is not exactly
      one sector in size, and you should fix that. */
-  printf("break\n");
+  //printf("break\n");
   struct cache_block *block = cache_lock (sector, EXCLUSIVE);
-  printf("break\n");
+  //printf("break\n");
   if(block == NULL)
   {
     cache_unlock(block, EXCLUSIVE);
@@ -133,7 +133,7 @@ inode_create (block_sector_t sector, off_t size, enum inode_type type)
   struct inode_disk *disk_inode = (struct inode_disk *) cache_read(block);
 
   disk_inode->length = size;
-  printf("creating with: %d for sector %d\n", disk_inode->length, sector);
+  //printf("creating with: %d for sector %d\n", disk_inode->length, sector);
 
   disk_inode->magic = INODE_MAGIC;
   disk_inode->type = type;
@@ -471,7 +471,7 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
 
   ASSERT(1 <= offset_cnt && offset_cnt <= 3);
 
-  printf("get_data_block: after calculate_indices, offset_cnt is %d\n", offset_cnt);
+  //printf("get_data_block: after calculate_indices, offset_cnt is %d\n", offset_cnt);
 
   for(i = 0; i < offset_cnt; i++)
   {
@@ -493,7 +493,7 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
       {
         cache_unlock(block, EXCLUSIVE);
         *data_block = NULL;
-        printf("get_data_block: missing block with allocate false on loop inter %d\n", i);
+        //printf("get_data_block: missing block with allocate false on loop inter %d\n", i);
         return true;
       }
       cache_unlock(block, EXCLUSIVE);
@@ -537,7 +537,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       int chunk_size = size < min_left ? size : min_left;
       if (chunk_size <= 0 || !get_data_block (inode, offset, false, &block, &excl))
       {
-        printf("pointer to block is: %p\n", block);
+        //printf("pointer to block is: %p\n", block);
         cache_unlock(block, excl);
         //PANIC("Whhoopsie");
         break;
@@ -695,7 +695,7 @@ off_t
 inode_length (const struct inode *inode)
 {
   dprint("inode_length", 0);
-  printf("pass read\n");
+  //printf("pass read\n");
   struct cache_block *block = cache_lock(inode->sector, NON_EXCLUSIVE);
   struct inode_disk *data = (struct inode_disk *) cache_read(block);
   off_t length = data->length;
