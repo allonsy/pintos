@@ -829,7 +829,10 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       int chunk_size = size < min_left ? size : min_left;
 
       if (chunk_size <= 0 || !get_data_block (inode, offset, true, &block, &excl))
+      {
+        cache_unlock(block, excl);
         break;
+      }
 
       sector_data = cache_read (block);
       memcpy (sector_data + sector_ofs, buffer + bytes_written, chunk_size);
