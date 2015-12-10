@@ -492,6 +492,10 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
     if(block != NULL)
     {
       data = (block_sector_t *) cache_read(block);
+      if(DEBUG_VAR_INODE)
+      {
+        printf("get_data_block: cur_sector: %u and data[cur_off] %u\n", cur_sector, data[cur_off]);
+      }
       if(data[cur_off] != INVALID_SECTOR)
       {
         cur_sector = data[cur_off];
