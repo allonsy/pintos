@@ -273,9 +273,8 @@ cache_lock (block_sector_t sector, enum lock_type type)
     {
       lock_acquire(&chosen_one->data_lock);
     }
-      block_read (fs_device, chosen_one->sector, chosen_one->data);
+    block_read (fs_device, chosen_one->sector, chosen_one->data);
       //cache_lock_helper(chosen_one, type);
-      unlock_cache();
     unlock_cache();
     //PANIC("found a free block");
     //printf("cache_lock: returning the free block case\n");

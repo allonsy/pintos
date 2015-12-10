@@ -304,15 +304,16 @@ allocate_sector(block_sector_t *sectorp)
     memset(data, 0, BLOCK_SECTOR_SIZE);
     cache_dirty(block);
     cache_unlock(block, EXCLUSIVE);
-    dprint("allocate_sector", 1);
+    dprint("allocate_sector TRUE", 1);
     return true;
   }
+
   if(*sectorp == INVALID_SECTOR)
   {
     PANIC("allocate_sector: free_map_allocate failed");
   }
 
-  dprint("allocate_sector", 1);
+  dprint("allocate_sector FALSE", 1);
   return false;
 }
 
@@ -478,152 +479,43 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
   size_t offset_cnt;
   struct cache_block *block, *indirect_block, *dbl_indirect_block;
   struct inode_disk *data;
+  block_sector_t cur_sector = inode->sector;
   block_sector_t *blocks, *ind_blocks;
   bool success = false;
+  int i;
+  size_t cur_off;
 
   dprint("get_data_block", 0);
   calculate_indices(logical_sector, offsets, &offset_cnt);
 
-  if(allocate)
-  {
-    block = cache_lock(inode->sector, EXCLUSIVE);
-  }
-  else
-  {
-    printf("get cache lock\n");
-    block = cache_lock(inode->sector, NON_EXCLUSIVE);
-  }
-  data = (struct inode_disk *) cache_read(block);
-  if(!allocate)
-  {
-    printf("unlocking\n");
-    cache_unlock(block, NON_EXCLUSIVE);
-  }
-  //printf("get_data_block: case %d with allocating %s\n", offset_cnt, allocate ? "true" : "false");
 
-  switch(offset_cnt)
+  for(i = 0; i < offset_cnt; i++)
   {
-    case 1:
-      printf("in case 1\n");
-      if(allocate)
+    block = cache_lock(cur_sector);
+    cur_off = offsets[i];
+    if(block != NULL)
+    {
+      data = (block_sector_t *) cache_read(block);
+      if(data[cur_off] != INVALID_SECTOR)
       {
-        if(allocate_sector(&data->sectors[offsets[0]]))
-        {
-          printf("get_data_block: case %d allocate_sector returned TRUE\n", offset_cnt);
-          *data_block = cache_lock(data->sectors[offsets[0]], EXCLUSIVE);
-          printf("get_data_block: case %d allocate_sector returned TRUE, passed cache_lock\n", offset_cnt);
-          *excl = true;
-        }
-        else
-        {
-          printf("get_data_block: case %d allocate_sector returned FALSE\n", offset_cnt);
-          *data_block = cache_lock(data->sectors[offsets[0]], NON_EXCLUSIVE);
-          printf("get_data_block: case %d allocate_sector returned FALSE, passed cache_lock\n", offset_cnt);
-          *excl = false;
-        }
+        cur_sector = data[cur_off];
+      }
+      else if (allocate)
+      {
+        allocate_sector(&data[cur_off]);
+      }
 
-        success = true;
-      }
-      else
-      {
-        printf("pre me\n");
-        *data_block = cache_lock(data->sectors[offsets[0]], NON_EXCLUSIVE);
-        printf("post m,e\n");
-        *excl = false;
-        success = *data_block != NULL;
-      }
-      //printf("get_data_block: case %d done with allocating %s\n", offset_cnt, allocate ? "true" : "false");
-      break;
-    case 2:
-      if(allocate)
-      {
-        init_indirect_sector(&data->sectors[offsets[0]]);
-        indirect_block = cache_lock(data->sectors[offsets[0]], EXCLUSIVE);
-        blocks = (block_sector_t *) cache_read(indirect_block);
-        if(allocate_sector(&blocks[offsets[1]]))
-        {
-          *data_block = cache_lock(blocks[offsets[1]], EXCLUSIVE);
-          *excl = true;
-        }
-        else
-        {
-          *data_block = cache_lock(blocks[offsets[1]], NON_EXCLUSIVE);
-          *excl = false;
-        }
-        cache_unlock(indirect_block, EXCLUSIVE);
-        success = true;
-      }
-      else
-      {
-        if(data->sectors[offsets[0]] != INVALID_SECTOR)
-        {
-          indirect_block = cache_lock(data->sectors[offsets[0]], NON_EXCLUSIVE);
-          blocks = (block_sector_t *) cache_read(indirect_block);
-          *data_block = cache_lock(blocks[offsets[1]], NON_EXCLUSIVE);
-          *excl = false;
-          success = *data_block != NULL;
-        } 
-      }
-      //printf("get_data_block: case %d done with allocating %s\n", offset_cnt, allocate ? "true" : "false");
-      break;
-    case 3:
-      if(allocate)
-      {
-        init_indirect_sector(&data->sectors[offsets[0]]);
-        dbl_indirect_block = cache_lock(data->sectors[offsets[0]], EXCLUSIVE);
-        ind_blocks = (block_sector_t *) cache_read(dbl_indirect_block);
-        init_indirect_sector(&ind_blocks[offsets[1]]);
-        indirect_block = cache_lock(ind_blocks[offsets[1]], EXCLUSIVE);
-        blocks = cache_read(indirect_block);
-        if(allocate_sector(&blocks[offsets[2]]))
-        {
-          *data_block = cache_lock(blocks[offsets[2]], EXCLUSIVE);
-          *excl = true;
-        }
-        else
-        {
-          *data_block = cache_lock(blocks[offsets[2]], NON_EXCLUSIVE);
-          *excl = false;
-        }
-        cache_unlock(indirect_block, EXCLUSIVE);
-        cache_unlock(dbl_indirect_block, EXCLUSIVE);
-        success = true;
-      }
-      else
-      {
-        if(data->sectors[offsets[0]] != INVALID_SECTOR)
-        {
-          dbl_indirect_block = cache_lock(data->sectors[offsets[0]], NON_EXCLUSIVE);
-          ind_blocks = (block_sector_t *) cache_read(dbl_indirect_block);
-          if(ind_blocks[offsets[1]] != INVALID_SECTOR)
-          {
-            indirect_block = cache_lock(ind_blocks[offsets[1]], NON_EXCLUSIVE);
-            blocks = (block_sector_t*) cache_read(indirect_block);
-            *data_block = cache_lock(blocks[offsets[2]], NON_EXCLUSIVE);
-            *excl = false;
-            cache_unlock(indirect_block, NON_EXCLUSIVE);
-            success = *data_block != NULL;
-          }
-          cache_unlock(dbl_indirect_block, NON_EXCLUSIVE);
-        }
-      }
-      //printf("get_data_block: case %d done with allocating %s\n", offset_cnt, allocate ? "true" : "false");
-      break;
-    default:
-      break;
+    }
+    else
+    {
+      PANIC("get_data_block: invalide sector, on iter %d". i);
+    }
+
+    /* THIS NEEDS TO GET DONE */
+
   }
 
-  if(allocate)
-  {
-    cache_unlock(block, EXCLUSIVE);
-  }
-  else
-  {
-    printf("unlocking\n");
-    cache_unlock(block, NON_EXCLUSIVE);
-  }
 
-  dprint("get_data_block", 1);
   return success;
 }
 
