@@ -192,6 +192,11 @@ lock_init (struct lock *lock)
 void
 lock_acquire (struct lock *lock)
 {
+  if(lock == NULL)
+  {
+    int x = 0 + 1;
+    printf("wahoo %d\n", x);
+  }
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   bool res = !lock_held_by_current_thread (lock);
@@ -239,6 +244,10 @@ void
 lock_release (struct lock *lock) 
 {
   ASSERT (lock != NULL);
+  if(!lock_held_by_current_thread(lock))
+  {
+    printf("here you go!\n");
+  }
   ASSERT (lock_held_by_current_thread (lock));
 
   lock->holder = NULL;
@@ -302,6 +311,10 @@ cond_wait (struct condition *cond, struct lock *lock)
   ASSERT (cond != NULL);
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
+  if(!lock_held_by_current_thread(lock))
+  {
+    printf("about to assert\n");
+  }
   ASSERT (lock_held_by_current_thread (lock));
   
   sema_init (&waiter.semaphore, 0);

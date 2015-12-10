@@ -54,6 +54,7 @@ process_execute (const char *file_name)
 static void
 start_process (void *file_name_)
 {
+  printf("hello\n");
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
@@ -85,7 +86,7 @@ start_process (void *file_name_)
     thread_exit ();
   }
   sema_up(&thread_current()->parent->exec_wait_sema);
-
+  printf("end heelo\n");
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its

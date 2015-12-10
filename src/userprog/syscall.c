@@ -14,6 +14,7 @@
 #include "filesys/file.h"
 #include "threads/synch.h"
 #include "filesys/directory.h"
+#include "filesys/inode.h"
 
 static void syscall_handler (struct intr_frame *f);
 
@@ -185,7 +186,7 @@ syscall_handler (struct intr_frame *f)
     default:
       // shouldn't reach here
       printf("system call! number: %d\n", call_nr);
-      thread_exit ();
+      sys_exit (-1);
       break;
   }
 
@@ -242,7 +243,7 @@ sys_create (char *file_name, unsigned initial_size)
   bool ret;
   if(filesys_open(kfile) == NULL)
   {
-    ret = filesys_create(kfile, initial_size);
+    ret = filesys_create(kfile, initial_size, FILE_INODE);
   }
   else
   {

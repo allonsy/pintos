@@ -27,7 +27,8 @@ enum lock_type
     bool is_free;
     struct lock data_lock; 
     uint8_t data[BLOCK_SECTOR_SIZE];
-    struct lock *cache_back;   
+    struct lock *cache_back;
+    struct lock read_write_lock;  
   };
 
 void cache_init (void);

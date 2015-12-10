@@ -44,7 +44,7 @@ filesys_done (void)
    Fails if a file named NAME already exists,
    or if internal memory allocation fails. */
 bool
-filesys_create (const char *name, off_t initial_size) 
+filesys_create (const char *name, off_t initial_size, enum inode_type type) 
 {
   block_sector_t inode_sector = 0;
   struct dir *dir = dir_open_root ();
@@ -54,7 +54,7 @@ filesys_create (const char *name, off_t initial_size)
   if(!(success &= free_map_allocate (1, &inode_sector)))
     PANIC("filesys_create: free_map_allocate failed");
 
-  if(!(success &= inode_create (inode_sector, initial_size)))
+  if(!(success &= inode_create (inode_sector, initial_size, type)))
     PANIC("filesys_create: inode_create failed");
 
   if(!(success &= dir_add (dir, name, inode_sector)))

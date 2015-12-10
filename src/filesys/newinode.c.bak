@@ -118,33 +118,36 @@ inode_init (void)
   I assume that the sector has been allocated in the freemap already
     */  
 bool
-inode_create (block_sector_t sector, enum inode_type type) 
+inode_create (block_sector_t sector, off_t size, enum inode_type type) 
 {
-  dprint("inode_create", 0);
   /* If this assertion fails, the inode structure is not exactly
      one sector in size, and you should fix that. */
-
+  printf("break\n");
   struct cache_block *block = cache_lock (sector, EXCLUSIVE);
+  printf("break\n");
   if(block == NULL)
   {
-    dprint("inode_create", 1);
     return false;
   }
 
   struct inode_disk *disk_inode = (struct inode_disk *) cache_read(block);
 
-  disk_inode->length = 0;
+  disk_inode->length = size;
+  printf("creating with: %d for sector %d\n", disk_inode->length, sector);
+
   disk_inode->magic = INODE_MAGIC;
   disk_inode->type = type;
 
   int i;
   for(i = 0; i < SECTOR_CNT; i++)
+  {
     disk_inode->sectors[i] = INVALID_SECTOR;
+  }
+  allocate_sector(&disk_inode->sectors[0]);
 
   cache_dirty(block);
   cache_unlock(block, EXCLUSIVE);
 
-  dprint("inode_create", 1);
   return true;
 }
 
@@ -216,7 +219,7 @@ inode_reopen (struct inode *inode)
   {
     inode_lock(inode);
     inode->open_cnt++;
-    inode_unlock (&inode->lock);
+    inode_unlock (inode);
   }
   dprint("inode_reopen", 1);
   return inode;
@@ -294,19 +297,19 @@ allocate_sector(block_sector_t *sectorp)
   dprint("allocate_sector", 0);
   if(*sectorp == INVALID_SECTOR) 
   {
-    printf("allocate_sector: sectorp INVALID\n");
-    free_map_allocate(sectorp);
-    struct cache_block *block = cache_lock(*sectorp, NON_EXCLUSIVE);
+    free_map_allocate(1, sectorp);
+    struct cache_block *block = cache_lock(*sectorp, EXCLUSIVE);
     uint8_t *data = (uint8_t *) cache_read(block);
     memset(data, 0, BLOCK_SECTOR_SIZE);
     cache_dirty(block);
-    cache_unlock(block, NON_EXCLUSIVE);
+    cache_unlock(block, EXCLUSIVE);
     dprint("allocate_sector", 1);
     return true;
   }
-  printf("allocate_sector: sectorp VALID %d\n", *sectorp);
   if(*sectorp == INVALID_SECTOR)
+  {
     PANIC("allocate_sector: free_map_allocate failed");
+  }
 
   dprint("allocate_sector", 1);
   return false;
@@ -339,7 +342,7 @@ deallocate_recursive (block_sector_t sector, int level)
       {
         /* deallocate the indirect sectors pointed to by the block */
         if(sectors[i] == INVALID_SECTOR)
-          break;
+          continue;
         else
           deallocate_recursive(sectors[i], level - 1);
       }
@@ -348,8 +351,9 @@ deallocate_recursive (block_sector_t sector, int level)
       PANIC("deallocate_recursive: INVALID SECTOR LEVEL %d", level);
   }
   memset(block->data, 0, BLOCK_SECTOR_SIZE);
+  cache_dirty(block);
   /* I think we should free this on the freemap? */
-  free_map_release (sector);
+  free_map_release (sector, 1);
   cache_unlock(block, EXCLUSIVE); /* should we be evicting here?? */
 }
 
@@ -381,7 +385,7 @@ deallocate_inode (const struct inode *inode)
   }
 
   memset(data, 0, BLOCK_SECTOR_SIZE);
-  free_map_release (inode->sector);
+  free_map_release (inode->sector, 1);
   cache_unlock(block, EXCLUSIVE);
   dprint("deallocate_inode", 1);
 
@@ -404,7 +408,7 @@ calculate_indices (off_t sector_idx, size_t offsets[], size_t *offset_cnt)
 
   dprint("calculate_indices", 0);
   /* THIS MATH IS NOT SAFE FOR ANYTHING BUT 1 DBL INDIRECT */
-  ASSERT(sector_idx < MAX_DBL_INDIRECT_SECTOR);
+  ASSERT(sector_idx <= MAX_DBL_INDIRECT_SECTOR);
 
   /* Handle direct blocks. */
   if(sector_idx < DIRECT_CNT)
@@ -415,7 +419,7 @@ calculate_indices (off_t sector_idx, size_t offsets[], size_t *offset_cnt)
     return;
   }
   /* Handle indirect blocks. */
-  if (sector_idx < MAX_INDIRECT_SECTOR)
+  if (sector_idx <= MAX_INDIRECT_SECTOR)
   {
     *offset_cnt = 2;
     off_t ind_idx = sector_idx - DIRECT_CNT;
@@ -425,7 +429,7 @@ calculate_indices (off_t sector_idx, size_t offsets[], size_t *offset_cnt)
     return;
   }
   /* Handle doubly indirect blocks. */
-  if(sector_idx < MAX_DBL_INDIRECT_SECTOR)
+  if(sector_idx <= MAX_DBL_INDIRECT_SECTOR)
   {
     /* this bit in particular assumes that there is one doubly indirect block */
     *offset_cnt = 3;
@@ -446,7 +450,7 @@ static void
 init_indirect_sector(block_sector_t *sectorp)
 {
   dprint("init_indirect_sector", 0);
-  if(*sectorp == INVALID_SECTOR && free_map_allocate(sectorp))
+  if(*sectorp == INVALID_SECTOR && free_map_allocate(1, sectorp))
   {
     struct cache_block *block = cache_lock(*sectorp, EXCLUSIVE);
     uint8_t *data = (uint8_t *) cache_read(block);
@@ -477,7 +481,6 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
   bool success = false;
 
   dprint("get_data_block", 0);
-
   calculate_indices(logical_sector, offsets, &offset_cnt);
 
   if(allocate)
@@ -486,29 +489,35 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
   }
   else
   {
+    printf("get cache lock\n");
     block = cache_lock(inode->sector, NON_EXCLUSIVE);
   }
+  printf("end\n");
   data = (struct inode_disk *) cache_read(block);
-
-  printf("get_data_block: case %d with allocating %s\n", offset_cnt, allocate ? "true" : "false");
+  if(!allocate)
+  {
+    cache_unlock(block, NON_EXCLUSIVE);
+  }
+  //printf("get_data_block: case %d with allocating %s\n", offset_cnt, allocate ? "true" : "false");
 
   switch(offset_cnt)
   {
     case 1:
+      printf("in case 1\n");
       if(allocate)
       {
         if(allocate_sector(&data->sectors[offsets[0]]))
         {
-          printf("get_data_block: case %d allocate_sector returned TRUE\n", offset_cnt);
+          //printf("get_data_block: case %d allocate_sector returned TRUE\n", offset_cnt);
           *data_block = cache_lock(data->sectors[offsets[0]], EXCLUSIVE);
-          printf("get_data_block: case %d allocate_sector returned TRUE, passed cache_lock\n", offset_cnt);
+          //printf("get_data_block: case %d allocate_sector returned TRUE, passed cache_lock\n", offset_cnt);
           *excl = true;
         }
         else
         {
-          printf("get_data_block: case %d allocate_sector returned FALSE\n", offset_cnt);
+          //printf("get_data_block: case %d allocate_sector returned FALSE\n", offset_cnt);
           *data_block = cache_lock(data->sectors[offsets[0]], NON_EXCLUSIVE);
-          printf("get_data_block: case %d allocate_sector returned FALSE, passed cache_lock\n", offset_cnt);
+          //printf("get_data_block: case %d allocate_sector returned FALSE, passed cache_lock\n", offset_cnt);
           *excl = false;
         }
 
@@ -520,7 +529,7 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
         *excl = false;
         success = *data_block != NULL;
       }
-      printf("get_data_block: case %d done with allocating %s\n", offset_cnt, allocate ? "true" : "false");
+      //printf("get_data_block: case %d done with allocating %s\n", offset_cnt, allocate ? "true" : "false");
       break;
     case 2:
       if(allocate)
@@ -552,7 +561,7 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
           success = *data_block != NULL;
         } 
       }
-      printf("get_data_block: case %d done with allocating %s\n", offset_cnt, allocate ? "true" : "false");
+      //printf("get_data_block: case %d done with allocating %s\n", offset_cnt, allocate ? "true" : "false");
       break;
     case 3:
       if(allocate)
@@ -595,7 +604,7 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
           cache_unlock(dbl_indirect_block, NON_EXCLUSIVE);
         }
       }
-      printf("get_data_block: case %d done with allocating %s\n", offset_cnt, allocate ? "true" : "false");
+      //printf("get_data_block: case %d done with allocating %s\n", offset_cnt, allocate ? "true" : "false");
       break;
     default:
       break;
@@ -604,10 +613,6 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
   if(allocate)
   {
     cache_unlock(block, EXCLUSIVE);
-  }
-  else
-  {
-    cache_unlock(block, NON_EXCLUSIVE);
   }
 
   dprint("get_data_block", 1);
@@ -813,9 +818,9 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       memcpy (sector_data + sector_ofs, buffer + bytes_written, chunk_size);
       cache_dirty (block);
       if(excl)
-        cache_unlock (block, NON_EXCLUSIVE);
-      else
         cache_unlock (block, EXCLUSIVE);
+      else
+        cache_unlock (block, NON_EXCLUSIVE);
 
       /* Advance. */
       size -= chunk_size;
@@ -867,11 +872,13 @@ off_t
 inode_length (const struct inode *inode)
 {
   dprint("inode_length", 0);
+    printf("pass read\n");
   struct cache_block *block = cache_lock(inode->sector, NON_EXCLUSIVE);
   struct inode_disk *data = (struct inode_disk *) cache_read(block);
   off_t length = data->length;
   cache_unlock(block, NON_EXCLUSIVE);
   dprint("inode_length", 1);
+  //printf("returning for sector: %d of %d\n", inode->sector, length);
   return length;
 }
 

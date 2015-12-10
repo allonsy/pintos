@@ -178,6 +178,7 @@ tid_t
 thread_create (const char *name, int priority,
                thread_func *function, void *aux) 
 {
+  printf("in thread create\n");
   struct thread *t;
   struct kernel_thread_frame *kf;
   struct switch_entry_frame *ef;
@@ -213,6 +214,7 @@ thread_create (const char *name, int priority,
     lock_release(&par->child_list_lock);
     sema_init(&t->exec_wait_sema, 0);
   }
+  printf("pass create\n");
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);

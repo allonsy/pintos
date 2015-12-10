@@ -16,7 +16,7 @@ enum inode_type
 
 void inode_init (void);
 //bool inode_create (block_sector_t, enum inode_type);
-bool inode_create (block_sector_t sector, off_t length);
+bool inode_create (block_sector_t sector, off_t length, enum inode_type type);
 struct inode *inode_open (block_sector_t);
 struct inode *inode_reopen (struct inode *);
 enum inode_type inode_get_type (const struct inode *);
