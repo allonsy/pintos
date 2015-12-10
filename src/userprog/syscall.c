@@ -287,8 +287,9 @@ sys_create (char *file_name, unsigned initial_size)
 static bool
 sys_mkdir(char *name)
 {
-  is_valid_uptr(name);
-  if(strcmp(name, "")==0)
+  char *kernel_buf = malloc(strlen(name));
+  memcpy(kernel_buf,name, strlen(name));
+  if(strcmp(kernel_buf, "")==0)
   {
     return false;
   }
@@ -302,7 +303,11 @@ sys_mkdir(char *name)
 static bool
 sys_chdir(char *name)
 {
-  PANIC("not implemented");
+  is_valid_uptr(name);
+  char *kernel_buf = malloc(strlen(name));
+  memcpy(kernel_buf,name, strlen(name));
+  change_directory(kernel_buf);
+  free(kernel_buf);
 }
 
 static int

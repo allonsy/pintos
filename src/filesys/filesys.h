@@ -22,5 +22,6 @@ bool filesys_remove (const char *name);
 bool resolve_name_to_entry (const char *name, struct dir **dirp, char base_name[NAME_MAX+1]);
 bool readdir_by_inode(struct inode *inode, char *dst);
 bool filesys_hasinit();
+bool change_directory(char *name);
 
 #endif /* filesys/filesys.h */
