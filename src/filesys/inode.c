@@ -31,7 +31,7 @@
 #define MAX_INDIRECT_SECTOR (DIRECT_CNT + PTRS_PER_SECTOR * INDIRECT_CNT)
 #define MAX_DBL_INDIRECT_SECTOR (DIRECT_CNT + PTRS_PER_SECTOR * INDIRECT_CNT + PTRS_PER_SECTOR * PTRS_PER_SECTOR * DBL_INDIRECT_CNT)
 
-#define DEBUG_VAR_INODE 0
+#define DEBUG_VAR_INODE 1
 
 static void
 dprint(const char *str, bool exitr)
@@ -480,10 +480,10 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
 
   ASSERT(1 <= offset_cnt && offset_cnt <= 3);
 
-  if(DEBUG_VAR_INODE)
-  {
-    printf("get_data_block: after calculate_indices, offset_cnt is %d\n", offset_cnt);
-  }
+  // if(DEBUG_VAR_INODE)
+  // {
+  //   printf("get_data_block: after calculate_indices, offset_cnt is %d\n", offset_cnt);
+  // }
 
   for(i = 0; i < offset_cnt; i++)
   {
@@ -507,7 +507,7 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
         *data_block = NULL;
         if(DEBUG_VAR_INODE)
         {
-          //printf("get_data_block: missing block with allocate false on loop inter %d\n", i);
+          printf("get_data_block: missing block with allocate false on loop inter %d\n", i);
         }
         return true;
       }
@@ -522,6 +522,7 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
   } /* end for */
 
   *data_block = cache_lock(cur_sector, EXCLUSIVE);
+  dprint("get_data_block", 1);
 
   return true;
 }
