@@ -85,7 +85,7 @@ static struct list open_inodes;
 static struct lock open_inodes_lock;
 
 static void deallocate_inode (const struct inode *);
-static void allocate_sector(block_sector_t *, bool);
+static bool allocate_sector(block_sector_t *, bool);
 
 
 
