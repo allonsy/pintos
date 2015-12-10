@@ -459,10 +459,9 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
   size_t offsets[3];
   size_t offset_cnt;
   struct cache_block *block;
+  block_sector_t *data;
   block_sector_t cur_sector = inode->sector;
-  //bool success = false;
-  int i;
-  size_t cur_off;
+  size_t i;
 
   dprint("get_data_block", 0);
   calculate_indices(logical_sector, offsets, &offset_cnt);
@@ -547,14 +546,15 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
         {
           const uint8_t *sector_data = cache_read (block);
           memcpy (buffer + bytes_read, sector_data + sector_ofs, chunk_size);
-          if(excl)
-          {
-            cache_unlock (block, NON_EXCLUSIVE);
-          }
-          else
-          {
-            cache_unlock (block, EXCLUSIVE);
-          }
+          // if(excl)
+          // {
+          //   cache_unlock (block, EXCLUSIVE);
+          // }
+          // else
+          // {
+          //   cache_unlock (block, NON_EXCLUSIVE);
+          // }
+          cache_unlock (block, EXCLUSIVE);
         }
       
       /* Advance. */
@@ -583,7 +583,8 @@ extend_file (struct inode *inode, off_t length)
   /* THIS IS CURRENTLY A VERY SLOW AND INEFFICIENT IMPLEMENATION */
   while(offset < length)
   {
-    get_data_block (inode, offset, true, &block, true /* unused */);
+    get_data_block (inode, offset, true, &block, NULL /* unused */);
+    cache_unlock(block, EXCLUSIVE);
     offset += BLOCK_SECTOR_SIZE;
   }
 }
@@ -631,14 +632,15 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       sector_data = cache_read (block);
       memcpy (sector_data + sector_ofs, buffer + bytes_written, chunk_size);
       cache_dirty (block);
-      if(excl)
-      {
-        cache_unlock (block, EXCLUSIVE);
-      }
-      else
-      {
-        cache_unlock (block, NON_EXCLUSIVE);
-      }
+      // if(excl)
+      // {
+      //   cache_unlock (block, EXCLUSIVE);
+      // }
+      // else
+      // {
+      //   cache_unlock (block, NON_EXCLUSIVE);
+      // }
+      cache_unlock (block, EXCLUSIVE);
 
       /* Advance. */
       size -= chunk_size;
