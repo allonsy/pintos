@@ -232,7 +232,7 @@ cache_lock (block_sector_t sector, enum lock_type type)
       //cache_lock_helper(cb, type);
       debugCount();
       unlock_cache();
-      if(!lock_held_by_current_thread(&chosen_one->read_write_lock))
+      if(!lock_held_by_current_thread(&cb->read_write_lock))
       {
         lock_acquire(&cb->read_write_lock);
       }
