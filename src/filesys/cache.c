@@ -231,8 +231,11 @@ cache_lock (block_sector_t sector, enum lock_type type)
       }
       //cache_lock_helper(cb, type);
       debugCount();
-      lock_acquire(&cb->read_write_lock);
       unlock_cache();
+      if(!lock_held_by_current_thread(&chosen_one->read_write_lock))
+      {
+        lock_acquire(&cb->read_write_lock);
+      }
       if(DEBUG_VAR_CACHE)
       {
         printf("out lock\n");
@@ -268,8 +271,11 @@ cache_lock (block_sector_t sector, enum lock_type type)
     block_read (fs_device, cb->sector, cb->data);
     //cache_lock_helper(cb, type);
     debugCount();
-    lock_acquire(&cb->read_write_lock);
     unlock_cache();
+    if(!lock_held_by_current_thread(&chosen_one->read_write_lock))
+    {
+      lock_acquire(&cb->read_write_lock);
+    }
     if(DEBUG_VAR_CACHE)
     {
       printf("out lock\n");
@@ -306,15 +312,19 @@ cache_lock (block_sector_t sector, enum lock_type type)
     }
     lock_release(&chosen_one->block_lock);*/
     debugCount();
-    lock_acquire(&chosen_one->read_write_lock);
+
+    if(!lock_held_by_current_thread(&chosen_one->read_write_lock))
+    {
+      lock_acquire(&chosen_one->read_write_lock);
+    }
     if(chosen_one->dirty)
     {
-      if(!lock_held_by_current_thread(&chosen_one->data_lock))
-      {
-        lock_acquire(&chosen_one->data_lock);
-      }
+      // if(!lock_held_by_current_thread(&chosen_one->data_lock))
+      // {
+      //   lock_acquire(&chosen_one->data_lock);
+      // }
       block_write (fs_device, chosen_one->sector, chosen_one->data);
-      lock_release(&chosen_one->data_lock);
+      //lock_release(&chosen_one->data_lock);
     }
     chosen_one->sector = sector;
     chosen_one->readers = 0;
@@ -325,13 +335,14 @@ cache_lock (block_sector_t sector, enum lock_type type)
     chosen_one->dirty = false;
     //lock_release(&cb->block_lock);
     //lock_init(&chosen_one->data_lock);
+    unlock_cache();
     if(!lock_held_by_current_thread(&chosen_one->data_lock))
     {
       lock_acquire(&chosen_one->data_lock);
     }
     block_read (fs_device, chosen_one->sector, chosen_one->data);
       //cache_lock_helper(chosen_one, type);
-    unlock_cache();
+
     //PANIC("found a free block");
     if(DEBUG_VAR_CACHE)
     {
@@ -431,7 +442,7 @@ void
 cache_unlock (struct cache_block *b, enum lock_type type) 
 {
   /* may not be necessary to hold cache sync lock */
-  lock_cache();
+  //lock_cache();
   /*lock_acquire(&b->block_lock);
   if(type == EXCLUSIVE) // I assume this means writing?
   {
@@ -480,7 +491,7 @@ cache_unlock (struct cache_block *b, enum lock_type type)
   {
     lock_release(&b->read_write_lock);
   }
-  unlock_cache();
+  //unlock_cache();
   return;
 }
 
