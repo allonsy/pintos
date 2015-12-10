@@ -472,6 +472,7 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
   block_sector_t cur_sector = inode->sector;
   size_t cur_off;
   size_t i;
+  struct inode_disk *temp;
 
   /* whoohoo */
 
@@ -491,10 +492,19 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
     cur_off = offsets[i];
     if(block != NULL)
     {
-      data = (block_sector_t *) cache_read(block);
+      if(i == 0)
+      {
+        temp = (struct inode_disk *) cache_read(block);
+        data = temp->sectors;
+      }
+      else
+      {
+        data = (block_sector_t *) cache_read(block);
+      }
       if(DEBUG_VAR_INODE)
       {
-        printf("get_data_block: cur_sector: %u and data[cur_off] %u\n", cur_sector, data[cur_off]);
+        printf("get_data_block: cur_sector: %u and data[cur_off] %u allocate: %s\n", 
+            cur_sector, data[cur_off], allocate ? "TRUE" : "FALSE");
       }
       if(data[cur_off] != INVALID_SECTOR)
       {
