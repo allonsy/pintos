@@ -152,7 +152,7 @@ inode_create (block_sector_t sector, off_t size, enum inode_type type)
   {
     disk_inode->sectors[i] = INVALID_SECTOR;
   }
-  allocate_sector(&disk_inode->sectors[0], 1);
+  allocate_sector(&disk_inode->sectors[0], 0);
 
   cache_dirty(block);
   cache_unlock(block, EXCLUSIVE);
@@ -480,6 +480,16 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
   calculate_indices(logical_sector, offsets, &offset_cnt);
 
   ASSERT(1 <= offset_cnt && offset_cnt <= 3);
+
+  for(i = 0; i < offset_cnt; i++)
+  {
+    ASSERT(0 <= offsets[i]);
+    ASSERT(offsets[i] < (i == 0 ? DIRECT_CNT : PTRS_PER_SECTOR));
+  } 
+
+
+
+  
 
   // if(DEBUG_VAR_INODE)
   // {
