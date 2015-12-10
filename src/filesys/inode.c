@@ -464,6 +464,8 @@ get_data_block (struct inode *inode, off_t offset, bool allocate,
   size_t cur_off;
   size_t i;
 
+  /* whoohoo */
+
   dprint("get_data_block", 0);
   calculate_indices(logical_sector, offsets, &offset_cnt);
 
