@@ -1,6 +1,6 @@
-#include "filesys/cache.h"
 #include <debug.h>
 #include <string.h>
+#include "filesys/cache.h"
 #include "filesys/filesys.h"
 #include "devices/timer.h"
 #include "threads/malloc.h"
@@ -137,7 +137,8 @@ cache_lock (block_sector_t sector, enum lock_type type)
   /* need this for some inode functions */
   if(sector == INVALID_SECTOR)
   {
-    debug_backtrace ();
+    //debug_backtrace ();
+    printf("what is this\n");
     PANIC("cache_lock: INVALID_SECTOR passed in");
     return NULL;
   }

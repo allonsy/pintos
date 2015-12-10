@@ -18,8 +18,9 @@ struct inode_disk
   {
     block_sector_t start;               /* First data sector. */
     off_t length;                       /* File size in bytes. */
+    enum inode_type type;                     /* Magic number. */
     unsigned magic;                     /* Magic number. */
-    uint32_t unused[125];               /* Not used. */
+    uint32_t unused[124];               /* Not used. */
   };
 
 /* Returns the number of sectors to allocate for an inode SIZE
@@ -72,6 +73,22 @@ static struct list open_inodes;
 static struct lock open_inodes_lock;
 
 
+bool is_directory(struct inode *in)
+{
+  struct cache_block *cb = cache_lock(in->sector, NON_EXCLUSIVE);
+  struct inode_disk *idisk = (struct inode_disk *)cache_read(cb);
+  cache_unlock(cb, NON_EXCLUSIVE);
+  if(idisk->type == DIR_INODE)
+  {
+    return true;
+  }
+  else
+  {
+    return false;
+  }
+}
+
+
 static void
 lock_list(void)
 {
@@ -98,7 +115,7 @@ inode_init (void)
    Returns true if successful.
    Returns false if memory or disk allocation fails. */
 bool
-inode_create (block_sector_t sector, off_t length)
+inode_create (block_sector_t sector, off_t length, enum inode_type type)
 {
   struct inode_disk *disk_inode = NULL;
   bool success = false;
@@ -114,6 +131,7 @@ inode_create (block_sector_t sector, off_t length)
   {
     size_t sectors = bytes_to_sectors (length);
     disk_inode->length = length;
+    disk_inode->type = type;
     disk_inode->magic = INODE_MAGIC;
     if (free_map_allocate (sectors, &disk_inode->start)) 
       {
@@ -131,6 +149,41 @@ inode_create (block_sector_t sector, off_t length)
     free (disk_inode);
   }
   return success;
+}
+
+bool create_dir(char *name)
+{
+  struct dir *parent;
+  char base[NAME_MAX+1];
+  int ret = resolve_name_to_entry(name, &parent, base);
+  if(ret ==false)
+  {
+    if(parent == NULL)
+    {
+      return false;
+    }
+    else
+    {
+      block_sector_t sector;
+      int ret = free_map_allocate(1, &sector);
+      //synch primitives?
+      if(ret == false)
+      {
+        return false;
+      }
+      struct inode *child = dir_create(sector, dir_get_inode(parent)->sector);
+      if(child == NULL)
+      {
+        return false;
+      }
+      else
+      {
+        ret = dir_add(parent, name, child->sector);
+        return ret;
+      }
+    }
+  }
+  return false;
 }
 
 /* Reads an inode from SECTOR

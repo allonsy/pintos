@@ -14,6 +14,7 @@
 #include "filesys/file.h"
 #include "threads/synch.h"
 #include "filesys/directory.h"
+//#include "filesys/inode.h"
 
 static void syscall_handler (struct intr_frame *f);
 
@@ -30,11 +31,16 @@ static int sys_read (int fd, void *buffer, unsigned length);
 static void sys_seek (int fd, unsigned position);
 static unsigned sys_tell (int fd);
 static void sys_close (int fd);
+static bool sys_mkdir(char *name);
+static bool sys_chdir(char *name);
+static int sys_inumber(int fd);
 
 static inline bool get_user (uint8_t *dst, const uint8_t *usrc);
 static inline bool put_user (uint8_t *udst, uint8_t byte);
 static void copy_in (void *dst_, const void *usrc_, size_t size);
 static char *copy_in_string (const char *us);
+static bool sys_isdir(int fd);
+static bool sys_readdir(int fd, char *name);
 
 void
 syscall_init (void) 
@@ -95,6 +101,8 @@ syscall_handler (struct intr_frame *f)
     case SYS_WAIT:
     case SYS_FILESIZE:
     case SYS_EXIT:
+    case SYS_MKDIR:
+    case SYS_ISDIR:
       arg_cnt = 1;
       break;
 
@@ -167,25 +175,48 @@ syscall_handler (struct intr_frame *f)
       sys_exit((int) args[0]);
       break;
 
+    case SYS_MKDIR:
+      f->eax = (uint32_t) sys_mkdir((const char*) args[0]);
+      break;
+    
+    case SYS_ISDIR:
+      f->eax = sys_isdir((int) args[0]);
+      break;
+
+    case SYS_CHDIR:
+      f->eax = sys_chdir((const char*) args[0]);
+      break;
+
+    case SYS_INUMBER:
+      f->eax = sys_inumber((int) args[0]);
+      break;
+
     /* 2-arg sys calls */  
     case SYS_CREATE:
       f->eax = (uint32_t) sys_create((const char *) args[0], (unsigned) args[1]);
       break;
+
     case SYS_SEEK:
       sys_seek((int) args[0], (unsigned) args[1]);
+      break;
+
+    case SYS_READDIR:
+      f->eax = sys_readdir((int) args[0], (char *) args[1]);
       break;
 
     /* 3-arg sys calls */  
     case SYS_WRITE:
       f->eax = (uint32_t) sys_write((int) args[0], (void*) args[1], (unsigned) args[2]);
       break;
+
     case SYS_READ:
       f->eax = sys_read((int) args[0], (void *) args[1], (unsigned) args[2]);
       break;
+
     default:
       // shouldn't reach here
       printf("system call! number: %d\n", call_nr);
-      thread_exit ();
+      sys_exit (-1);
       break;
   }
 
@@ -242,7 +273,7 @@ sys_create (char *file_name, unsigned initial_size)
   bool ret;
   if(filesys_open(kfile) == NULL)
   {
-    ret = filesys_create(kfile, initial_size);
+    ret = filesys_create(kfile, initial_size, FILE_INODE);
   }
   else
   {
@@ -253,7 +284,80 @@ sys_create (char *file_name, unsigned initial_size)
   return ret;
 }
 
+static bool
+sys_mkdir(char *name)
+{
+  is_valid_uptr(name);
+  if(strcmp(name, "")==0)
+  {
+    return false;
+  }
+  else
+  {
+    PANIC("not implemented");
+  }
+  return false;
+}
 
+static bool
+sys_chdir(char *name)
+{
+  PANIC("not implemented");
+}
+
+static int
+sys_inumber(int fd)
+{
+  struct thread *t = thread_current();
+  struct list_elem *e;
+  struct fdesc *fds = NULL;
+  for(e=list_begin(&t->files); e != list_end(&t->files); e = list_next(e))
+  {
+    fds = list_entry(e, struct fdesc, elem);
+    if(fds->fd == fd)
+    {
+      struct inode *in = file_get_inode(fds->fptr);
+      return inode_get_inumber(in);
+    }
+  }
+  return -1;
+}
+
+static bool
+sys_readdir(int fd, char *name)
+{
+  is_valid_uptr(name);
+  struct thread *t = thread_current();
+  struct list_elem *e;
+  struct fdesc *fds = NULL;
+  for(e=list_begin(&t->files); e != list_end(&t->files); e = list_next(e))
+  {
+    fds = list_entry(e, struct fdesc, elem);
+    if(fds->fd == fd)
+    {
+      struct inode *in = file_get_inode(fds->fptr);
+      return readdir_by_inode(in, name);
+    }
+  }
+  return false;
+}
+
+static bool sys_isdir(int fd)
+{
+  struct thread *t = thread_current();
+  struct list_elem *e;
+  struct fdesc *fds = NULL;
+  for(e=list_begin(&t->files); e != list_end(&t->files); e = list_next(e))
+  {
+    fds = list_entry(e, struct fdesc, elem);
+    if(fds->fd == fd)
+    {
+      struct inode *in = file_get_inode(fds->fptr);
+      return is_directory(in);
+    }
+  }
+  return false;
+}
 
 /* Write system call. */
 static int

@@ -1,5 +1,3 @@
-/* random shit here */
-
 #include "userprog/process.h"
 #include "devices/timer.h"
 #include <debug.h>
