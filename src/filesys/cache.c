@@ -20,6 +20,8 @@ struct lock *debug;
 int debug_cnt;
 static int hand = 0;
 
+#define DEBUG_VAR_CACHE 0
+
 
 static void flushd_init (void);
 static void readaheadd_init (void);
@@ -37,18 +39,30 @@ static void debugCount()
   debug_cnt++;
   if(debug_cnt ==799)
   {
-    printf("we hit it\n");
+    if(DEBUG_VAR_CACHE)
+    {
+      printf("we hit it\n");
+    }
   }
-  //printf("debug_cnt is: %d\n", debug_cnt);
+  if(DEBUG_VAR_CACHE)
+  {
+    printf("debug_cnt is: %d\n", debug_cnt);
+  }
 }
 
 static void
 unlock_cache(void)
 {
-  //printf("unlock_cache: entered\n");
+  if(DEBUG_VAR_CACHE)
+  {
+    printf("unlock_cache: entered\n");
+  }
   if(lock_held_by_current_thread(cache_bak))
     lock_release(cache_bak);
-  //printf("unlock_cache: exiting\n");
+  if(DEBUG_VAR_CACHE)
+  {
+    printf("unlock_cache: exiting\n");
+  }
 }
 /* Initializes cache. */
 void
@@ -104,7 +118,10 @@ static void
 cache_lock_helper(struct cache_block *cb, enum lock_type type)
 {
   PANIC("someone called me");
-  //printf("in helper\n");
+  if(DEBUG_VAR_CACHE)
+  {
+    printf("in helper\n");
+  }
   if(type == EXCLUSIVE) /* I assume this means writing? */
   {
     if(!lock_held_by_current_thread(&cb->block_lock))
@@ -116,7 +133,10 @@ cache_lock_helper(struct cache_block *cb, enum lock_type type)
     while(cb->writers>0 || cb->readers>0)
     {
       unlock_cache();
-      printf("going in with writers: %d, readers: %d\n", cb->writers, cb->readers);
+      if(DEBUG_VAR_CACHE)
+      {
+        printf("going in with writers: %d, readers: %d\n", cb->writers, cb->readers);
+      }
       cond_wait(&cb->no_readers_or_writers, &cb->block_lock);
       lock_cache();
     }
@@ -135,7 +155,10 @@ cache_lock_helper(struct cache_block *cb, enum lock_type type)
     while(cb->writers>0)
     {
       unlock_cache();
-      printf("going in with writers: %d, readers: %d\n", cb->writers, cb->readers);
+      if(DEBUG_VAR_CACHE)
+      {
+        printf("going in with writers: %d, readers: %d\n", cb->writers, cb->readers);
+      }
       cond_wait(&cb->no_writers, &cb->block_lock);
       lock_cache();
     }
@@ -150,11 +173,17 @@ cache_lock_helper(struct cache_block *cb, enum lock_type type)
       debug_cnt++;
       if(debug_cnt==131)
       {
-        //printf("readers is one with cnt %d\n", debug_cnt);
+        if(DEBUG_VAR_CACHE)
+        {
+          printf("readers is one with cnt %d\n", debug_cnt);
+        }
       }
     }
   }
-    //printf("out helper\n");
+  if(DEBUG_VAR_CACHE)
+  {
+    printf("out helper\n");
+  }
 }
 
 /* Locks the given SECTOR into the cache and returns the cache
@@ -168,9 +197,11 @@ cache_lock_helper(struct cache_block *cb, enum lock_type type)
 struct cache_block *
 cache_lock (block_sector_t sector, enum lock_type type) 
 {
-  //printf("starty\n");
   /* need this for some inode functions */
-  //printf("in lock\n");
+  if(DEBUG_VAR_CACHE)
+  {
+    printf("cache_lock: entered\n");
+  }
   if(sector == INVALID_SECTOR)
   {
     debug_backtrace ();
@@ -185,30 +216,47 @@ cache_lock (block_sector_t sector, enum lock_type type)
   /* Is the block already in-cache? */
 
   lock_cache();
-  //printf("wat the devil\n");
+  if(DEBUG_VAR_CACHE)
+  {
+    printf("wat the devil\n");
+  }
   for(i = 0; i < CACHE_CNT; i++)
   {
     struct cache_block *cb = &cache[i];     
     if(cb->sector == sector)
     {
-      //printf("index is: %d\n", i);
+      if(DEBUG_VAR_CACHE)
+      {
+        printf("index is: %d\n", i);
+      }
       //cache_lock_helper(cb, type);
       debugCount();
       lock_acquire(&cb->read_write_lock);
       unlock_cache();
-          //printf("out lock\n");
+      if(DEBUG_VAR_CACHE)
+      {
+        printf("out lock\n");
+      }
       return cb;
     }
   }
 
   /* Not in cache.  Find empty slot. */
-  //printf("wat\n");
-  //printf("going to fiund free\n");
+  if(DEBUG_VAR_CACHE)
+  {
+    printf("cache_lock: going to fiund free\n");
+  }
   i = find_free_block();
-  //printf("finding free\n");
+  if(DEBUG_VAR_CACHE)
+  {
+    printf("cache_lock: found free\n");
+  }
   if(i != -1)
   {
-    //printf("free block with index %d\n", i);
+    if(DEBUG_VAR_CACHE)
+    {
+      printf("free block with index %d\n", i);
+    }
     struct cache_block *cb = &cache[i];
     cb->sector = sector;
     cb->readers = 0;
@@ -222,14 +270,19 @@ cache_lock (block_sector_t sector, enum lock_type type)
     debugCount();
     lock_acquire(&cb->read_write_lock);
     unlock_cache();
-    //printf("out lock\n");
+    if(DEBUG_VAR_CACHE)
+    {
+      printf("out lock\n");
+    }
     return &cache[i];
   }
   else /* No empty slots.  Evict something. */
   {
-    //printf("begin eviction\n");
+    if(DEBUG_VAR_CACHE)
+    {
+      printf("begin eviction\n");
+    }
     int rand;
-    //printf("going to eviction\n");
 
     rand_segment:
     random_bytes(&rand, 1);
@@ -245,7 +298,10 @@ cache_lock (block_sector_t sector, enum lock_type type)
     }
     while(chosen_one->writers>0 || chosen_one->readers>0)
     {
-      printf("writers are: %d, readers are: %d\n", chosen_one->writers, chosen_one->readers);
+      if(DEBUG_VAR_CACHE)
+      {
+        printf("writers are: %d, readers are: %d\n", chosen_one->writers, chosen_one->readers);
+      }
       cond_wait(&chosen_one->no_readers_or_writers, &chosen_one->block_lock);
     }
     lock_release(&chosen_one->block_lock);*/
@@ -277,8 +333,10 @@ cache_lock (block_sector_t sector, enum lock_type type)
       //cache_lock_helper(chosen_one, type);
     unlock_cache();
     //PANIC("found a free block");
-    //printf("cache_lock: returning the free block case\n");
-        //printf("out lock\n");
+    if(DEBUG_VAR_CACHE)
+    {
+      printf("cache_lock: returning the eviction case\n");
+    }
     return chosen_one;
   }
 
@@ -306,17 +364,26 @@ cache_lock (block_sector_t sector, enum lock_type type)
 void *
 cache_read (struct cache_block *b) 
 {
-  //printf("in read\n");
+  if(DEBUG_VAR_CACHE)
+  {
+    //printf("in read\n");
+  }
   /* do we need anything else here?? */
   lock_cache();
   if(!b->up_to_date && !b->dirty)
   {
-    //printf("cache_read: reading from disk\n");
+    if(DEBUG_VAR_CACHE)
+    {
+      //printf("cache_read: reading from disk\n");
+    }
     block_read (fs_device, b->sector, b->data);
     b->up_to_date = true;
   }
   unlock_cache();
-  //printf("out read\n");
+  if(DEBUG_VAR_CACHE)
+  {
+    //printf("out read\n");
+  }
   return (void *) b->data;
 }
 
@@ -370,7 +437,10 @@ cache_unlock (struct cache_block *b, enum lock_type type)
   {
     if(b->writers==0)
     {
-      printf("writers are 0\n");
+      if(DEBUG_VAR_CACHE)
+      {
+        printf("writers are 0\n");
+      }
     }
     b->writers--;
      // should be zero now
@@ -451,7 +521,10 @@ flushd (void *aux UNUSED)
 {
   for (;;) 
     {
-      printf("for some reason this function is running\n");
+      if(DEBUG_VAR_CACHE)
+      {
+        printf("for some reason this function is running\n");
+      }
       //timer_msleep (30 * 1000);
       cache_flush ();
     }
