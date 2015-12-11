@@ -32,5 +32,7 @@ int inode_open_cnt (const struct inode *);
 void inode_lock (struct inode *);
 void inode_unlock (struct inode *);
 bool is_directory(struct inode *);
+bool create_dir(char *);
+void inode_flush(struct inode *);
 
 #endif /* filesys/inode.h */

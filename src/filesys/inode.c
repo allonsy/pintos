@@ -178,7 +178,7 @@ bool create_dir(char *name)
       }
       else
       {
-        ret = dir_add(parent, name, child->sector);
+        ret = dir_add(parent, name, sector);
         return ret;
       }
     }
@@ -229,8 +229,6 @@ inode_open (block_sector_t sector)
   inode->deny_write_cnt = 0;
   inode->writer_cnt = 0;
   inode->removed = false;
-
-
   struct cache_block *b = cache_lock(inode->sector, EXCLUSIVE);
   struct inode_disk *data = (struct inode_disk*) cache_read(b);
   inode->length = data->length;
@@ -320,7 +318,6 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
 
   while (size > 0) 
   {
-    //printf("begin loop top\n");
     /* Disk sector to read, starting byte offset within sector. */
     block_sector_t sector_idx = byte_to_sector (inode, offset);
     int sector_ofs = offset % BLOCK_SECTOR_SIZE;
@@ -439,6 +436,13 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   free (bounce);
 
   return bytes_written;
+}
+
+void inode_flush(struct inode *in)
+{
+  struct cache_block *cb=cache_lock(in->start, NON_EXCLUSIVE);
+  cache_inode_flush(cb);
+  cache_unlock(cb, NON_EXCLUSIVE);
 }
 
 /* Disables writes to INODE.

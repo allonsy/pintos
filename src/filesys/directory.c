@@ -27,7 +27,7 @@ struct inode *
 dir_create (block_sector_t sector, block_sector_t parent_sector)
 {
   //PANIC("Need to implement before proceeding\n");
-  inode_create(sector, 512, DIR_INODE);
+  inode_create(sector, 16 * sizeof(struct dir_entry), DIR_INODE);
   struct inode *newdir = inode_open(sector);
   struct dir *open_dir = dir_open(newdir);
   if(parent_sector != -1)
@@ -36,6 +36,7 @@ dir_create (block_sector_t sector, block_sector_t parent_sector)
     dir_add(open_dir, "..", inode_get_inumber(par));
   }
   dir_add(open_dir, ".", sector);
+  inode_flush(newdir);
   dir_close(open_dir);
   return newdir;
 }
@@ -106,11 +107,14 @@ lookup (const struct dir *dir, const char *name,
   struct dir_entry e;
   size_t ofs;
   
+  int count = 0;
+
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
-  for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
-       ofs += sizeof e) 
+  for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e; ofs += sizeof e)
+  {
+    count++;
     if (e.in_use && !strcmp (name, e.name)) 
       {
         if (ep != NULL)
@@ -119,6 +123,7 @@ lookup (const struct dir *dir, const char *name,
           *ofsp = ofs;
         return true;
       }
+  }
   return false;
 }
 
@@ -134,9 +139,10 @@ dir_lookup (const struct dir *dir, const char *name,
 
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
-
   if (lookup (dir, name, &e, NULL))
+  {
     *inode = inode_open (e.inode_sector);
+  }
   else
     *inode = NULL;
 

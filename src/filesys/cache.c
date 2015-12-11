@@ -138,7 +138,7 @@ cache_lock (block_sector_t sector, enum lock_type type)
   if(sector == INVALID_SECTOR)
   {
     //debug_backtrace ();
-    printf("what is this\n");
+    //printf("what is this\n");
     PANIC("cache_lock: INVALID_SECTOR passed in");
     return NULL;
   }
@@ -160,7 +160,6 @@ cache_lock (block_sector_t sector, enum lock_type type)
       return cb;
     }
   }
-
   /* Not in cache.  Find empty slot. */
 
   i = find_free_block();
@@ -372,6 +371,11 @@ static void
 flushd_init (void) 
 {
   thread_create ("flushd", PRI_MIN, flushd, NULL);
+}
+
+void cache_inode_flush(struct cache_block *b)
+{
+  block_write(fs_device, b->sector, b->data);
 }
 
 /* Flush daemon thread. */

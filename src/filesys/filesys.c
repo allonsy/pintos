@@ -33,7 +33,6 @@ filesys_init (bool format)
     do_format ();
 
   free_map_open ();
-  thread_current()->current_dir=dir_open_root();
   hasinit = true;
 }
 
@@ -99,7 +98,7 @@ resolve_name_to_entry (const char *name,
                        struct dir **dirp, char base_name[NAME_MAX + 1]) 
 {
   struct dir *start;
-  if(name[0]!='/')
+  if(name[0]!='/' && thread_current()->current_dir)
   {
     start = thread_current()->current_dir;
   }
@@ -116,11 +115,19 @@ resolve_name_to_entry (const char *name,
     int success = dir_lookup(start, string_part, &hop);
     if(success == false)
     {
+      memcpy(base_name, string_part, NAME_MAX+1);
       *dirp=start;
       return false;
     }
     if(is_directory(hop))
     {
+      ret = get_next_part(string_part, &name);
+      if(ret == 0)
+      {
+        memcpy(base_name, string_part, NAME_MAX+1);
+        *dirp = start;
+        return true;
+      }
       start = dir_open(hop);
       //possibly close parent here;
     }
@@ -224,13 +231,15 @@ bool change_directory(char *name)
     return true;
   }
   return false;
-}
+} 
 
 bool
 filesys_create (const char *name, off_t initial_size, enum inode_type type) 
 {
   block_sector_t inode_sector = 0;
-  struct dir *dir = dir_open_root ();
+  struct dir *dir = NULL;
+  char base[NAME_MAX+1];
+  int ret = resolve_name_to_entry(name, &dir, base);
   bool success = dir != NULL;
   if(!success)
     PANIC("filesys_create: dir is null");

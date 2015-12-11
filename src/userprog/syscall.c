@@ -103,12 +103,14 @@ syscall_handler (struct intr_frame *f)
     case SYS_EXIT:
     case SYS_MKDIR:
     case SYS_ISDIR:
+    case SYS_CHDIR:
       arg_cnt = 1;
       break;
 
     /* 2-arg sys calls */  
     case SYS_CREATE:
     case SYS_SEEK:
+    case SYS_READDIR:
       arg_cnt = 2;
       break;
 
@@ -287,17 +289,28 @@ sys_create (char *file_name, unsigned initial_size)
 static bool
 sys_mkdir(char *name)
 {
-  char *kernel_buf = malloc(strlen(name));
-  memcpy(kernel_buf,name, strlen(name));
-  if(strcmp(kernel_buf, "")==0)
+  char *kfile = copy_in_string (name);
+  if(strcmp(kfile, "") == 0)
   {
     return false;
   }
+  if(strlen(kfile)>NAME_MAX)
+  {
+    return false;
+  }
+  lock_acquire(&filesys_lock);
+  bool ret;
+  if(filesys_open(kfile) == NULL)
+  {
+    ret = create_dir(kfile);
+  }
   else
   {
-    PANIC("not implemented");
+    ret = 0;
   }
-  return false;
+  lock_release(&filesys_lock);
+  free(kfile);
+  return ret;
 }
 
 static bool
@@ -379,6 +392,11 @@ sys_write (int fd, void *usrc_, unsigned size)
   }
   else
   {
+    if(sys_isdir(fd))
+    {
+      free(kernel_buf);
+      return -1;
+    }
     struct thread *t = thread_current();
     struct list_elem *e;
     struct fdesc *fds = NULL;

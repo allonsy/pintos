@@ -59,6 +59,7 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
+static struct dir **debug_ptr;
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -109,6 +110,7 @@ thread_init (void)
   sema_init(&initial_thread->exec_wait_sema, 0);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->current_dir = NULL;
+  debug_ptr = &initial_thread->current_dir;
   initial_thread->tid = allocate_tid ();
 }
 
@@ -195,10 +197,6 @@ thread_create (const char *name, int priority,
 
   /* Initialize thread. */
   init_thread (t, name, priority);
-  if(filesys_hasinit())
-  {
-    t->current_dir = thread_current()->current_dir;
-  }
   list_init(&t->children);
   lock_init(&t->child_list_lock);
   tid = t->tid = allocate_tid ();
@@ -219,6 +217,7 @@ thread_create (const char *name, int priority,
     lock_release(&par->child_list_lock);
     sema_init(&t->exec_wait_sema, 0);
   }
+  t->current_dir = thread_current()->current_dir;
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -300,10 +299,6 @@ thread_current (void)
      of stack, so a few big automatic arrays or moderate
      recursion can cause stack overflow. */
   ASSERT (is_thread (t));
-  if(t->status != THREAD_RUNNING)
-  {
-    printf("about to assert\n");
-  }
   ASSERT (t->status == THREAD_RUNNING);
 
   return t;
