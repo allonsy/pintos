@@ -29,7 +29,7 @@ to file extension.
 
 
 overall, I EXPECT TO RECEIVE AS A GRADE:
-Actual: 55.56 on the tests + 10 for design doc = 65.56
+Actual: 55.56 on the tests (37 fails) + 10 for design doc = 65.56
 Adjusted: 65.56 * (4/3) = 87.41%
 
 
@@ -243,7 +243,7 @@ enum lock_type
 >> C2: Describe how your cache replacement algorithm chooses a cache
 >> block to evict.
 
-In our file extension code we have an LRU with second chance. 
+Our design employs an LRU with second chance. 
 It iterates through the cache (starting at hand) until it finds a block with no
 readers and writers and evicts it. If we go through everything and see no blocks
 without readers or writers, we acquire a lock to the first block we find and wait until are

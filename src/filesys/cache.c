@@ -180,18 +180,20 @@ cache_lock (block_sector_t sector, enum lock_type type)
   }
   else /* No empty slots.  Evict something. */
   {
-    int rand;
+    int sel;
+    //LRU in file extension (see code below)
 
     rand_segment:
-    random_bytes(&rand, 1);
-    if(rand < 0)
+    random_bytes(&sel, 1);
+    if(sel < 0)
     {
-      rand = rand * (-1);
+      sel = sel * (-1);
     }
-    rand = rand % CACHE_CNT;
-    struct cache_block *chosen_one = &cache[rand];
+    sel = sel % CACHE_CNT;
+    struct cache_block *chosen_one = &cache[sel];
     if(chosen_one->readers || chosen_one->writers)
     {
+      //check no readers
       goto rand_segment;
     }
 
@@ -621,10 +623,6 @@ cache_lock (block_sector_t sector, enum lock_type type)
 
 
   lock_cache();
-  if(DEBUG_VAR_CACHE)
-  {
-    printf("wat the devil\n");
-  }
   for(i = 0; i < CACHE_CNT; i++)
   {
     struct cache_block *cb = &cache[i];     
@@ -689,11 +687,14 @@ cache_lock (block_sector_t sector, enum lock_type type)
   }
   else
   {
+    //PERFORM LRU:
+
+
     if(DEBUG_VAR_CACHE)
     {
       printf("begin eviction\n");
     }
-        int top = 0;
+    int top = 0;
     int second_chance = 0;
 
     select_segment:
