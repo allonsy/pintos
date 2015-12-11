@@ -100,7 +100,7 @@ resolve_name_to_entry (const char *name,
   struct dir *start;
   if(name[0]!='/' && thread_current()->current_dir)
   {
-    start = thread_current()->current_dir;
+    start = dir_open(thread_current()->current_dir);
   }
   else
   {
@@ -191,12 +191,13 @@ get_directory_from_name(const char *name, struct dir **dirp)
     return false;
   }
   struct inode *in;
-  ret = dir_lookup(parent, name, &in);
+  ret = dir_lookup(parent, base, &in);
   if(ret == true)
   {
     if(is_directory(in))
     {
       *dirp = dir_open(in);
+      return true;
     }
     else
     {
@@ -249,7 +250,7 @@ filesys_create (const char *name, off_t initial_size, enum inode_type type)
   if(!(success &= inode_create (inode_sector, initial_size, type)))
     PANIC("filesys_create: inode_create failed");
 
-  if(!(success &= dir_add (dir, name, inode_sector)))
+  if(!(success &= dir_add (dir, base, inode_sector)))
     PANIC("filesys_create: dir_add failed");
 
 

@@ -317,10 +317,11 @@ static bool
 sys_chdir(char *name)
 {
   is_valid_uptr(name);
-  char *kernel_buf = malloc(strlen(name));
-  memcpy(kernel_buf,name, strlen(name));
-  change_directory(kernel_buf);
+  char *kernel_buf = malloc(strlen(name)+1);
+  memcpy(kernel_buf,name, strlen(name)+1);
+  bool ret = change_directory(kernel_buf);
   free(kernel_buf);
+  return ret;
 }
 
 static int
