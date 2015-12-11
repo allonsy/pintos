@@ -8,9 +8,6 @@
 
 >> Fill in the names and email addresses of your group members.
 
-
-
-Alejandro Younger <acy1@uchicago.edu>
 Alec Snyder <alsnyder@uchicago.edu>
 
 ---- PRELIMINARIES ----
@@ -18,13 +15,17 @@ Alec Snyder <alsnyder@uchicago.edu>
 >> If you have any preliminary comments on your submission, notes for the
 >> TAs, or extra credit, please give them here.
 
-I definitely did not start this project early enough, considering my earlier
-deadline. As a result, there is a lot of functionality lacking, and 
-some design decisions have yet to be made.
+I talked with Professor Gunawi and given that my partner graduated a week early, 
+he agreed to give me a little point boost where my final p4 grade is my actual
+p4 grade times (4/3). 
 
-I also wrote some code for the new inode.c framework (ie, for extensibility, etc)
-but was unable to get it to play nice with the cache framework in a reasonable time frame.
-If you look at my repository, this is the newinode.c file.
+Currently, caching works and directories mostly function. I was unable to get
+file extensibility to debug well so it is included at the bottom of inode.c but
+commented out.
+
+Overall, I expect to receive:
+Actual:
+Adjusted: 
 
 
 >> Please cite any offline or online sources you consulted while
@@ -40,7 +41,7 @@ If you look at my repository, this is the newinode.c file.
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
-/* NOTE: THESE ARE FROM THE FRAMEWORK THAT DID NOT WORK OUT */
+/* NOTE: THESE ARE FROM THE FRAMEWORK THAT IS COMMENTED OUT DUE TO FAILING TESTS */
 
 struct inode 
   {
@@ -57,13 +58,22 @@ struct inode
     int writer_cnt;                     /* Number of writers. */
   };
 
+  struct inode_disk
+  {
+    block_sector_t sectors[SECTOR_CNT]; /* sectors. (123 direct, 1 indirect, 1 doubly indirect)*/
+    enum inode_type type;               /* FILE_INODE or DIR_INODE. */
+    off_t length;                       /* File size in bytes. */
+    unsigned magic;                     /* Magic number. */
+  };
+
 >> A2: What is the maximum size of a file supported by your inode
 >> structure?  Show your work.
 
-/* Again this is from the framework that didn't make it into my final commit */
-Roughly 8MB. The doubly indirect block dominates the computation, and has
-128 pointers to blocks with 128 pointers which each hold 512 bytes.
-This is ultimately 2^23 bytes, or 8MB.
+With the extensibility code included, we support 123 direct blocks, 
+1 indirect block and 1 doubly indirect block which leads to:
+123 + (128 * 1) + (128 * 128) = 16635 block. 
+Then, each block can support 512 bytes so we have a max file size of:
+16635 * 512 = 8517120 = 8.5MB
 
 
 ---- SYNCHRONIZATION ----
@@ -71,9 +81,9 @@ This is ultimately 2^23 bytes, or 8MB.
 >> A3: Explain how your code avoids a race if two processes attempt to
 >> extend a file at the same time.
 
-Only one thread can write to a given block at a time (via the cache_lock setup)
-thus only one thread can add a new block at a time, since adding this new block
-requires editing the inode block (ie, writing to it).
+We have read/write locks in our cache. Therefore, if two processes need to 
+extend the file, they need to acquire the write lock first which guarantees
+mutual exclusion.
 
 >> A4: Suppose processes A and B both have file F open, both
 >> positioned at end-of-file.  If A reads and B writes F at the same
@@ -82,8 +92,9 @@ requires editing the inode block (ie, writing to it).
 >> nonzero data, A is not allowed to see all zeros.  Explain how your
 >> code avoids this race.
 
-Readers can only access a given block if there are no writers, hence if
-A tries to read a block being written, A will not see it OR will see the data B wrote.
+Writers are only allowed to proceed with a write until there are no more
+readers. Likewise, readers aren't allowed to proceed if there are writers
+Therefore, our design avoids this by using this mutual reader/writer exclusion.
 
 >> A5: Explain how your synchronization design provides "fairness".
 >> File access is "fair" if readers cannot indefinitely block writers
@@ -92,7 +103,11 @@ A tries to read a block being written, A will not see it OR will see the data B 
 >> processes writing to a file cannot prevent another process forever
 >> from reading the file.
 
-I do not actually handle this case. 
+The most common case of fairness is readers hogging a file and preventing
+a writer from writing. Therefore, whenever a writer enters the queue, we
+allow all readers to finish but prevent new readers from entering.
+Then, after a single writer is done, we hand control back to all the readers.
+This way, the writers can't hog the file either.  
 
 ---- RATIONALE ----
 
@@ -102,7 +117,11 @@ I do not actually handle this case.
 >> structure, and what advantages and disadvantages does your
 >> structure have, compared to a multilevel index?
 
-Yes. It was suggested. It is complicated. It is ugly. 
+For our multilevel inodes (in the commented out code), we have a multilevel index.
+We have 123 direct blocks so that small files can quickly access their data blocks.
+We also have 1 indirect for medium files and and additional doubly indirect block. 
+Together, this offers speed for small files, eliminates external fragmentation by
+allocating one block at a time, and offers larger file sizes up to 8.5 MB. 
 
 			    SUBDIRECTORIES
 			    ==============
@@ -113,14 +132,29 @@ Yes. It was suggested. It is complicated. It is ugly.
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
-Did not get to this while struggling VS caching.
+
+/* Added to thread.c */
+
+struct thread
+{
+  ...
+  struct inode *current_dir; // pointer to the current thread's working dir
+  ...
+}
 
 ---- ALGORITHMS ----
 
 >> B2: Describe your code for traversing a user-specified path.  How
 >> do traversals of absolute and relative paths differ?
 
-See B1.
+Given an absolute path, we break it up into directories. For each level 
+(starting at root), we open up the directory, find the inode of the next 
+directory, and repeat until we are left with the last part of the path 
+or the next hop is not found in the previous directory. 
+
+If we have a relative path, we grab the stored inode for the current
+thread's working directory and start the process at that inode instead of
+at the root.
 
 ---- SYNCHRONIZATION ----
 
@@ -129,23 +163,29 @@ See B1.
 >> should succeed, as should only one of two simultaneous attempts to
 >> create a file with the same name, and so on.
 
-Directories are files, and removal (or creation) requires editing the block 
-either holding the file in question or where the next available entry is. 
-Only one thread can edit a block at a time, so this prevents the race. 
+Access to reading and writing directories is managed via the cache
+and thus includes the same synchronization primitives as our cache.
+When files are removed from the directory, this is a write and is therefore
+guaranteed to be mutually exclusive by the cache system (as specified in
+the buffer cache of this document).
 
 >> B5: Does your implementation allow a directory to be removed if it
 >> is open by a process or if it is in use as a process's current
 >> working directory?  If so, what happens to that process's future
 >> file system operations?  If not, how do you prevent it?
 
-See B1.
+If a directory is owned by a process, that directory may be removed by another
+process. If a process's cwd is removed, then any future access will default
+to the root directory as the cwd.
 
 ---- RATIONALE ----
 
 >> B6: Explain why you chose to represent the current directory of a
 >> process the way you did.
 
-See B1.
+Representing it as an inode gives us direct access to the directory's
+data blocks. While struct dir *'s may be open and closed, the inode will
+always give us access to the directory's sector number for access.
 
 			     BUFFER CACHE
 			     ============
@@ -186,16 +226,21 @@ enum lock_type
 >> C2: Describe how your cache replacement algorithm chooses a cache
 >> block to evict.
 
-I went with random eviction, as this was fast to implement.
+In our file extension code we have an LRU with second chance. 
+It iterates through the cache (starting at hand) until it finds a block with no
+readers and writers and evicts it. If we go through everything and see no blocks
+without readers or writers, we acquire a lock to the first block we find and wait until are
+readers and writers leave before evicting.
 
 >> C3: Describe your implementation of write-behind.
 
-We store things in cache and when there are no readers or writers or waiting threads
-we write back. 
+information is stored in the data portion of the cache block in memory. If we evict
+that block or the cache is flushed, we write it back to the disk to the sector
+pointed to by cache_block->sector if it is dirty.
 
 >> C4: Describe your implementation of read-ahead.
 
-Did not do so.
+We did not implement read-ahead.
 
 ---- SYNCHRONIZATION ----
 
@@ -203,28 +248,29 @@ Did not do so.
 >> buffer cache block, how are other processes prevented from evicting
 >> that block?
 
-We check that there are no readers or writers before we evict the block.
-If there are, we generate another random cache block to evict.
+When we want to evict a block, we hold on to the reader and writer locks
+and cache_sync so that no new readers/writers can wait for this block until
+eviction is complete. Then, we wait until all readers and writers are finished
+before proceeding with eviction.
 
 >> C6: During the eviction of a block from the cache, how are other
 >> processes prevented from attempting to access the block?
 
-eviction and accessing are both handled in cache_lock, which is protected
-by the cache_sync lock, hence only one thread can do so at a time.
+We hold onto the cache_sync lock during eviction so no other process
+can find this block until we are done.
 
 ---- RATIONALE ----
 
 >> C7: Describe a file workload likely to benefit from buffer caching,
 >> and workloads likely to benefit from read-ahead and write-behind.
 
-Any workload that repeatedly accesses the same file, like a data base or something,
-would be good for buffer caching.
+Workloads with lots of quick reads and writes, like work document editing
+where the student presses save many times in a short span will benefit from
+buffer caching and write behind since the writes aren't committed to disk
+every single time.
 
-Any work (changes) that get done with frequency on the same small blocks would benefit
-from write_behind since this reduces the IOs if there are many changes being made.
+Read ahead favors workloads with many sequential accesses, such as watching movies.
 
-Read ahead helps workloads like watching movies or listening to music, where
-sequential access of blocks is practically guaranteed.
 
 			   SURVEY QUESTIONS
 			   ================
@@ -238,25 +284,33 @@ the quarter.
 >> In your opinion, was this assignment, or any one of the three problems
 >> in it, too easy or too hard?  Did it take too long or too little time?
 
-This assignment was hard, but mostly I didn't start in time.
+I think that the file extension and directory portions were quite interesting
+and elightening although challenging. 
+However, I felt that the cache portion was complex without
+giving us exposure to newer concepts (we dealt with cache like structures already
+in p3) which made it feel a little unnecessary. 
 
 >> Did you find that working on a particular part of the assignment gave
 >> you greater insight into some aspect of OS design?
 
-It was cool to see the parallels between VM and buffer cache, and how 
-cool solutions can be applied to several problems.
+Certainly working on file extension gave me a new appreciation for
+how easy it seems to be to add bytes to a file while in reality, it can
+be quite complicated. It was also neat to see how directories are stored
+on disk as they are a critical part of any filesystem.
 
 >> Is there some particular fact or hint we should give students in
 >> future quarters to help them solve the problems?  Conversely, did you
 >> find any of our guidance to be misleading?
 
-Some of the guides were not clear, in particular on how the members
-of the cache_block were supposed to interact. 
+I would say that some of the structure elements in the code provided
+were a little vague on their purpose and I would have liked to see
+a little more information on how we were supposed to use them.
 
 >> Do you have any suggestions for the TAs to more effectively assist
 >> students in future quarters?
 
 >> Any other comments?
 
-Really enjoyed this class, despite the multitude of hours in the lab. 
-To me, that is the signof a good course. 
+I had a great time in this class and I certainly have a much greater
+appreciation for all the basic computer operations that seem so effortless
+but are actually quite complex. 
