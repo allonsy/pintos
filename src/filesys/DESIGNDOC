@@ -20,12 +20,13 @@ he agreed to give me a little point boost where my final p4 grade is my actual
 p4 grade times (4/3). 
 
 Currently, caching works and directories mostly function. I was unable to get
-file extensibility to debug well so it is included at the bottom of inode.c but
-commented out.
+file extensibility to debug well so it is included at the bottom of inode.c and cache.c but
+commented out. In this document I will refer to this commented out implementation in regards
+to file extension.
 
-Overall, I expect to receive:
-Actual:
-Adjusted: 
+overall, I EXPECT TO RECEIVE AS A GRADE:
+Actual: 55.56 on the tests + 10 for design doc = 65.56
+Adjusted: 65.56 * (4/3) = 87.41%
 
 
 >> Please cite any offline or online sources you consulted while
@@ -41,7 +42,7 @@ Adjusted:
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
-/* NOTE: THESE ARE FROM THE FRAMEWORK THAT IS COMMENTED OUT DUE TO FAILING TESTS */
+/* note: these are from the framework commented out due to failing tests */
 
 struct inode 
   {
