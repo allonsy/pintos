@@ -1,5 +1,5 @@
-       	       	     +-------------------------+
-		     |		CS 140	       |
+       	 +-------------------------+
+		     |		     CS 230          |
 		     | PROJECT 4: FILE SYSTEMS |
 		     |	   DESIGN DOCUMENT     |
 		     +-------------------------+
@@ -9,6 +9,7 @@
 >> Fill in the names and email addresses of your group members.
 
 Alec Snyder <alsnyder@uchicago.edu>
+Alejandro Younger <acy1@uchicago.edu>
 
 ---- PRELIMINARIES ----
 
@@ -24,9 +25,15 @@ file extensibility to debug well so it is included at the bottom of inode.c and 
 commented out. In this document I will refer to this commented out implementation in regards
 to file extension.
 
+
+
+
 overall, I EXPECT TO RECEIVE AS A GRADE:
 Actual: 55.56 on the tests + 10 for design doc = 65.56
 Adjusted: 65.56 * (4/3) = 87.41%
+
+
+
 
 
 >> Please cite any offline or online sources you consulted while
@@ -140,6 +147,15 @@ struct thread
 {
   ...
   struct inode *current_dir; // pointer to the current thread's working dir
+  ...
+}
+
+/* From inode.c */
+
+struct inode_disk
+{
+  ...
+  enum inode_type type;               /* FILE_INODE or DIR_INODE. */
   ...
 }
 
